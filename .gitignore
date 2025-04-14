@@ -1,0 +1,96 @@
+# .gitignore for the SherlockScan project
+
+# --- Bytecode and Compiled Files ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Distribution / Packaging ---
+build/
+dist/
+wheels/
+*.egg-info/
+*.egg
+MANIFEST
+
+# --- Virtual Environments ---
+# Common names for virtual environments
+venv/
+env/
+.venv/
+.env/
+*_env/
+env.bak/
+venv.bak/
+
+# --- Test Artifacts ---
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+nosetests.xml
+*.cover
+.tox/
+
+# --- IDE / Editor Files ---
+# VS Code
+.vscode/
+# PyCharm
+.idea/
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+# Eclipse / PyDev
+.project
+.pydevproject
+.settings/
+
+# --- Operating System Files ---
+# macOS
+.DS_Store
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+# Linux
+*~
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Temporary Files ---
+*.tmp
+*.bak
+*.swp
+# Specific temp dirs potentially created by tests or utils
+temp_pkg_src*/
+temp_dl*/
+sherlock_extract_*/
+sherlock_download_*/
+sherlock_test_*/
+sherlock_e2e_*/
+
+# --- Notebooks ---
+.ipynb_checkpoints
+
+# --- Secrets ---
+# If you use .env files for secrets (e.g., API keys for testing integrations), ignore them.
+# Commit a .env.example file instead.
+.env
+*.env.*
+!*.env.example
+
+# --- Other ---
+# Ignore SQLite databases if used locally
+*.sqlite3
+*.db
+
+# Ignore downloaded package archives from tests/utils if not cleaned up
+*.whl
+*.tar.gz
+*.zip
+
+# Add any other project-specific files or directories to ignore below
+

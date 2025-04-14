@@ -1,0 +1,23 @@
+# requirements.txt
+#
+# Runtime dependencies for SherlockScan.
+# Use this file to install dependencies, e.g., using:
+# pip install -r requirements.txt
+#
+# Version specifiers should ideally match those in setup.py for consistency
+# during development. For application deployment, you might pin versions (`==`).
+
+# Core CLI framework
+typer>=0.9.0,<1.0.0
+
+# Parsing configuration files (YAML)
+PyYAML>=6.0,<7.0
+
+# Parsing requirement strings and canonicalizing names
+packaging>=21.3
+
+# Parsing pyproject.toml files
+toml>=0.10.2
+
+# Note: Python >= 3.8 is required (due to importlib.metadata usage),
+# which should be enforced via setup.py's python_requires.

@@ -1,0 +1,28 @@
+# MANIFEST.in
+#
+# Specifies which non-code files to include in source distributions (sdists).
+# This works in conjunction with include_package_data=True in setup.py.
+
+# Include important top-level files.
+include README.md
+include LICENSE
+include requirements.txt
+
+# Recursively include all files within the sherlockscan/config directory.
+# This ensures the default YAML configuration files are packaged.
+graft sherlockscan/config
+
+# Exclude compiled Python files globally
+global-exclude *.py[cod]
+# Exclude __pycache__ directories globally
+global-exclude __pycache__
+
+# Exclude test files and directories from the distribution
+# (find_packages in setup.py already excludes tests from installation,
+# but pruning them from the sdist is also good practice).
+prune tests
+
+# One can add other files here if needed, like documentation files, examples etc. if needed during enhancements
+# Example: graft docs
+# Example: prune docs/_build
+

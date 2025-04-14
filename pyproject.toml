@@ -1,0 +1,48 @@
+# pyproject.toml
+
+# PEP 518: Specify build system requirements
+# This tells tools like pip what is needed to build the package from source.
+[build-system]
+# List of packages needed to build the package (e.g., setuptools, wheel)
+requires = [
+    "setuptools>=42", # Minimum version of setuptools supporting pyproject.toml builds
+    "wheel"           # Required for building wheel distributions
+]
+# The Python object that build frontends (like pip) will call to perform the build.
+# For setuptools-based projects (using setup.py), this is the standard value.
+build-backend = "setuptools.build_meta"
+
+# Optional: PEP 621 Project Metadata
+# We primarily define metadata in setup.py for this project, but project URLs
+# can be usefully defined here.
+# If you fully switch to pyproject.toml metadata later, uncomment and fill the [project] table.
+# [project]
+# name = "sherlockscan"
+# version = "0.1.0" # Can read dynamically using plugins
+# description = "A tool to analyze Python packages for potential security risks, focusing on DS/ML."
+# readme = "README.md"
+# requires-python = ">=3.8"
+# license = {text = "MIT"}
+# authors = [
+#   {name = "Arockia Liborious", email="arockialiborious@gmail.com"},
+# ]
+# dependencies = [
+#    "typer>=0.9.0,<1.0.0",
+#    "PyYAML>=6.0,<7.0",
+#    "packaging>=21.3",
+#    "toml>=0.10.2",
+# ]
+# classifiers = [
+#    'Development Status :: 3 - Alpha',
+#    # ... other classifiers
+# ]
+#
+# [project.scripts]
+# sherlockscan = "sherlockscan.cli:app"
+
+# Project URLs provide useful links for users on PyPI etc.
+[project.urls]
+Homepage = "https://github.com/itsual/sherlockscan" # Updated URL
+Issues = "https://github.com/itsual/sherlockscan/issues" # Updated URL
+# Documentation = "https://your-docs-url.com" # Add if you have separate docs
+

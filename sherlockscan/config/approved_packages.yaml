@@ -1,0 +1,114 @@
+# sherlockscan/config/approved_packages.yaml
+#
+# Optional configuration file to define allowed and blocked package dependencies.
+# The `deps.py` scanner uses these lists to check the direct dependencies
+# of the package being scanned.
+#
+# Package names are case-insensitive and underscores/dashes are normalized
+# by the scanner before comparison (e.g., "scikit-learn" matches "scikit_learn").
+
+# Allowlist: If this list is defined and not empty, any direct dependency
+# *not* found in this list will be flagged as "Unapproved Dependency".
+# If the allowlist is empty or commented out, this check is skipped.
+# Only include packages explicitly vetted and approved for use.
+allowlist:
+  # --- Core Data Science / ML ---
+  - numpy
+  - pandas
+  - scikit-learn
+  - scipy
+  - matplotlib
+  - seaborn
+  - statsmodels
+
+  # --- Deep Learning Frameworks ---
+  - tensorflow # Or specific variant like tensorflow-cpu
+  - keras
+  - torch # PyTorch
+  - torchvision
+  - torchaudio
+  - jax # Often used in DL research
+
+  # --- Gradient Boosting ---
+  - xgboost
+  - lightgbm
+  - catboost
+
+  # --- NLP ---
+  - nltk
+  - spacy
+
+  # --- Computer Vision ---
+  - opencv-python # Common distribution for OpenCV
+  - opencv-python-headless
+  - pillow # PIL fork
+
+  # --- Hugging Face Ecosystem ---
+  - transformers
+  - datasets
+  - tokenizers
+  - accelerate
+
+  # --- LLM Frameworks & SDKs ---
+  - openai
+  - langchain
+  - langchain-core
+  - langchain-community # Add specific langchain integrations as needed
+  - llama-index
+  - llama-parse
+
+  # --- Agentic Frameworks ---
+  - pyautogen # Microsoft AutoGen
+
+  # --- MLOps / LLMOps / Experiment Tracking ---
+  - mlflow # MLflow Tracking, Models, Projects, etc.
+  - dvc # Data Version Control
+  - dvc-gdrive # DVC extensions as needed
+  - dvc-s3
+  - great-expectations # Data validation
+  - bentoml # Model Serving
+  - wandb # Weights & Biases
+
+  # --- DevOps / Infrastructure ---
+  - docker # Docker SDK for Python
+  - kubernetes # Kubernetes Python client
+  # - ansible # Less common as direct Python script dependency
+  # - python-terraform # Less common as direct Python script dependency
+
+  # --- Cloud SDKs (Examples - Add specific needed services) ---
+  - boto3 # AWS SDK
+  - google-api-python-client
+  - google-cloud-aiplatform
+  - google-cloud-storage
+  - google-cloud-bigquery
+  # - azure-identity # Add specific Azure SDK components as needed
+  # - azure-storage-blob
+
+  # --- Common Utilities & Infrastructure ---
+  - requests
+  - pyyaml # Used by sherlockscan itself
+  - packaging # Used by sherlockscan itself
+  - toml # Used by sherlockscan itself
+  - python-dateutil
+  - pytz
+  - tqdm # Progress bars
+  - python-dotenv # Environment variables
+  - fastapi # Web framework
+  - uvicorn # ASGI server
+  - flask # Web framework
+  - celery # Task queue
+  - redis # Often used with Celery/Caching
+  - joblib # Parallel processing, used by scikit-learn
+
+  # Add other vetted and approved packages here...
+  # - my-internal-approved-lib
+
+# Blocklist: Any direct dependency found in this list will be flagged
+# as "Blocked Dependency" with high/critical severity.
+blocklist:
+  - malicious-package # Example of a known bad package
+  - insecure-lib-v1 # Example of an outdated/vulnerable library to block
+  - typo-squatting-pkg # Example of a potential typosquatting attempt
+  # Add any packages explicitly forbidden by policy
+  # - forbidden-tool
+
