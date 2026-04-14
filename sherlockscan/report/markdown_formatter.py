@@ -48,7 +48,7 @@ def _format_finding(finding: Dict[str, Any]) -> str:
     message = finding.get('message', 'No details provided.')
     file_path = finding.get('file_path', 'N/A')
     line_number = finding.get('line_number')
-    code_snippet = finding.get('code_snippet', '').strip()
+    code_snippet = (finding.get('code_snippet') or '').strip()
 
     # Header for the finding
     details.append(f"### {f_type} (`{severity}`)")

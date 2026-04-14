@@ -99,7 +99,7 @@ regex_patterns:
 
   - name: Simple Password Assignment
     type: Hardcoded Secret
-    pattern: '(?i)(password|pass|pwd)\s*=\s*["\'](.{6,})["\']' # Require minimum length (e.g., 6)
+    pattern: "(?i)(password|pass|pwd)\\s*=\\s*[\"'](.{6,})[\"']" # Require minimum length (e.g., 6)
     severity: HIGH
     message: "Potential hardcoded password assignment detected."
 
@@ -113,7 +113,7 @@ regex_patterns:
   - name: Generic API Key Variable Assignment
     type: Hardcoded Secret
     # Matches common API key patterns assigned to variables
-    pattern: '(?i)(key|token|secret|password|apikey|api_key|client_secret|auth_token)\s*[:=]\s*["\']?([a-z0-9_.\-+!@#$%^&*()=]{16,})["\']?'
+    pattern: "(?i)(key|token|secret|password|apikey|api_key|client_secret|auth_token)\\s*[:=]\\s*[\"']?([a-z0-9_.\\-+!@#$%^&*()=]{16,})[\"']?"
     severity: HIGH
     message: "Potential generic API key or secret variable assignment detected."
 
