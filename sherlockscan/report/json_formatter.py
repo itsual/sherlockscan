@@ -9,6 +9,7 @@
 import json
 import logging
 import datetime
+from datetime import timezone
 from typing import List, Dict, Any, Optional
 
 # Configure logging
@@ -39,7 +40,7 @@ def format_report_json(
     logging.debug(f"Formatting report to JSON for package: {package_name}")
 
     # Get current timestamp in ISO 8601 format (UTC)
-    scan_timestamp = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+    scan_timestamp = datetime.datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
     # Construct the report dictionary
     report_data = {

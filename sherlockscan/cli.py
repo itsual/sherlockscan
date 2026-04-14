@@ -27,16 +27,6 @@ except ImportError as e:
     print(f"Details: {e}")
     sys.exit(1)
 
-# --- Library Imports ---
-try:
-    from importlib import metadata as importlib_metadata
-except ImportError:
-    try:
-        import importlib_metadata # type: ignore
-    except ImportError:
-        print("Error: importlib.metadata (or backport) not found. Dependency scanning requires Python 3.8+ or `pip install importlib-metadata`.")
-        importlib_metadata = None # type: ignore 
-
 # --- Configuration ---
 # Configure logging for the CLI tool
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')

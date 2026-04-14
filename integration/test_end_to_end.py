@@ -74,7 +74,7 @@ def make_request():
         pass # Ignore errors in dummy code
 
 # High entropy
-obfuscated = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
+obfuscated = "X5O!P%@AP[4\\\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
 
 # Keyword
 # TODO: security - fix this

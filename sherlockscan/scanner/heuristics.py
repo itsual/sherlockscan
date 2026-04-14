@@ -192,54 +192,54 @@ if __name__ == '__main__':
     import os
 
     # Create dummy config content
-    dummy_config_content = """
-regex_patterns:
-  - name: AWS Access Key ID
-    type: Hardcoded Secret
-    pattern: '(?<![A-Z0-9])[A-Z0-9]{20}(?![A-Z0-9])' # Basic example, needs refinement
-    severity: CRITICAL
-    message: "Potential AWS Access Key ID detected."
-  - name: Generic Password Variable
-    type: Hardcoded Secret
-    pattern: '(?i)password\s*=\s*["\'](.*?)["\']' # Finds password = "..."
-    severity: HIGH
-    message: "Potential hardcoded password variable detected."
-
-keywords:
-  - name: TODO Security
-    type: Security Comment
-    keyword: "TODO: security"
-    severity: LOW
-    message: "Comment indicates a potential security task."
-  - name: HACK Keyword
-    type: Suspicious Comment
-    keyword: "HACK:"
-    severity: MEDIUM
-    message: "Keyword 'HACK:' found in comments."
-
-settings:
-  entropy_threshold: 4.0 
-"""
+    dummy_config_content = (
+        "regex_patterns:\n"
+        "  - name: AWS Access Key ID\n"
+        "    type: Hardcoded Secret\n"
+        "    pattern: '(?<![A-Z0-9])[A-Z0-9]{20}(?![A-Z0-9])'\n"
+        "    severity: CRITICAL\n"
+        '    message: "Potential AWS Access Key ID detected."\n'
+        "  - name: Generic Password Variable\n"
+        "    type: Hardcoded Secret\n"
+        "    pattern: '(?i)password\\s*=\\s*[\"\\x27](.*?)[\"\\x27]'\n"
+        "    severity: HIGH\n"
+        '    message: "Potential hardcoded password variable detected."\n'
+        "\n"
+        "keywords:\n"
+        "  - name: TODO Security\n"
+        "    type: Security Comment\n"
+        '    keyword: "TODO: security"\n'
+        "    severity: LOW\n"
+        '    message: "Comment indicates a potential security task."\n'
+        "  - name: HACK Keyword\n"
+        "    type: Suspicious Comment\n"
+        '    keyword: "HACK:"\n'
+        "    severity: MEDIUM\n"
+        "    message: \"Keyword 'HACK:' found in comments.\"\n"
+        "\n"
+        "settings:\n"
+        "  entropy_threshold: 4.0\n"
+    )
 
     # Create dummy file content
-    dummy_code_content = """
-import os
-
-# Credentials - BAD!
-aws_key = "AKIAIOSFODNN7EXAMPLE" 
-password = "MySuperSecretPassword123" 
-another_var = "thisisjustaregularstring"
-
-# High entropy string - maybe obfuscated?
-obfuscated = "X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*" # EICAR test string has high entropy
-
-# Keywords
-# TODO: security - need to fix this later
-# HACK: Quick fix for demo
-
-def normal_function():
-    print("Hello")
-"""
+    dummy_code_content = (
+        "import os\n"
+        "\n"
+        "# Credentials - BAD!\n"
+        'aws_key = "AKIAIOSFODNN7EXAMPLE"\n'
+        'password = "MySuperSecretPassword123"\n'
+        'another_var = "thisisjustaregularstring"\n'
+        "\n"
+        "# High entropy string - maybe obfuscated?\n"
+        'obfuscated = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"\n'
+        "\n"
+        "# Keywords\n"
+        "# TODO: security - need to fix this later\n"
+        "# HACK: Quick fix for demo\n"
+        "\n"
+        "def normal_function():\n"
+        '    print("Hello")\n'
+    )
 
     # Create temporary config file
     with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.yaml', encoding='utf-8') as tmp_config_file:
