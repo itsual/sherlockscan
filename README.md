@@ -292,7 +292,7 @@ SherlockScan provides two output formats:
 
 ## Contributing
 
-Contributions are welcome! Please read the `CONTRIBUTING.md` file for guidelines on reporting issues, proposing features, and submitting pull requests.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting issues, proposing features, and submitting pull requests.
 
 Key areas for contribution:
 
