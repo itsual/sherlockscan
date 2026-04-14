@@ -304,6 +304,12 @@ Key areas for contribution:
 * Improving report formatting and explainability.
 * Adding more tests!
 
+## Project Resources
+
+* [CHANGELOG.md](CHANGELOG.md) - Version history and release notes
+* [RELEASE.md](RELEASE.md) - PyPI release checklist and publishing guide
+* [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
