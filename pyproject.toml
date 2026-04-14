@@ -40,9 +40,7 @@ build-backend = "setuptools.build_meta"
 # [project.scripts]
 # sherlockscan = "sherlockscan.cli:app"
 
-# Project URLs provide useful links for users on PyPI etc.
-[project.urls]
-Homepage = "https://github.com/itsual/sherlockscan" # Updated URL
-Issues = "https://github.com/itsual/sherlockscan/issues" # Updated URL
-# Documentation = "https://your-docs-url.com" # Add if you have separate docs
+# Project URLs are defined in setup.py's project_urls parameter.
+# A [project.urls] table requires a full [project] table (with at least 'name'),
+# so it cannot be used standalone. See setup.py for URL definitions.
 

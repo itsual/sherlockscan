@@ -7,6 +7,7 @@
 # sherlockscan/scanner/deps.py
 
 import logging
+import re
 import yaml
 import os
 from typing import List, Dict, Any, Set, Optional

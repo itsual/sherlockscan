@@ -153,7 +153,7 @@ class TestInstallScriptAnalyzer(unittest.TestCase):
         setup_path = self._write_file("setup.py", SAMPLE_RISKY_SETUP_PY)
         findings = scan_setup_py(str(setup_path))
         self.assertGreaterEqual(len(findings), 4) # requests import, os.system, subprocess, eval
-        self._assert_finding_present(findings, "Install Script Network", "HIGH", 3) # import requests
+        self._assert_finding_present(findings, "Install Script Network", "HIGH", 4) # import requests
         self._assert_finding_present(findings, "Install Script Execution", "CRITICAL", 8) # os.system
         self._assert_finding_present(findings, "Install Script Execution", "HIGH", 11) # subprocess.run
         self._assert_finding_present(findings, "Install Script Execution", "CRITICAL", 15) # eval

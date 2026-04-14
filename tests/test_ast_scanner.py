@@ -50,23 +50,23 @@ class TestAstScanner(unittest.TestCase):
 import os
 import pickle
 
-eval('print("hello")') # Line 4
-os.system('ls')       # Line 5
-exec('a=1')           # Line 6
-pickle.loads(b'data') # Line 7
-compile('x=1', '', 'exec') # Line 8
+eval('print("hello")') # Line 5
+os.system('ls')       # Line 6
+exec('a=1')           # Line 7
+pickle.loads(b'data') # Line 8
+compile('x=1', '', 'exec') # Line 9
 """
         temp_file_path = self._create_temp_file(code)
         try:
             findings = scan_file_ast(str(temp_file_path))
             self.assertGreater(len(findings), 4, "Should find multiple risky calls") # pickle import + calls
-            self._assert_finding_present(findings, "Risky Call", "CRITICAL", 4) # eval
-            self._assert_finding_present(findings, "Subprocess Execution", "CRITICAL", 5) # os.system
-            self._assert_finding_present(findings, "Risky Call", "CRITICAL", 6) # exec
-            self._assert_finding_present(findings, "Insecure Deserialization", "CRITICAL", 7) # pickle.loads
-            self._assert_finding_present(findings, "Risky Call", "HIGH", 8) # compile
+            self._assert_finding_present(findings, "Risky Call", "CRITICAL", 5) # eval
+            self._assert_finding_present(findings, "Subprocess Execution", "CRITICAL", 6) # os.system
+            self._assert_finding_present(findings, "Risky Call", "CRITICAL", 7) # exec
+            self._assert_finding_present(findings, "Insecure Deserialization", "CRITICAL", 8) # pickle.loads
+            self._assert_finding_present(findings, "Risky Call", "HIGH", 9) # compile
             # Also check for pickle import finding
-            self._assert_finding_present(findings, "Insecure Deserialization", "CRITICAL", 2) # import pickle
+            self._assert_finding_present(findings, "Insecure Deserialization", "CRITICAL", 3) # import pickle
         finally:
             os.remove(temp_file_path) # Clean up
 
@@ -192,7 +192,7 @@ def top_level_exec():
             self._assert_finding_present(findings, "Subprocess Execution", "CRITICAL", 7) # os.system in method
             self._assert_finding_present(findings, "Insecure Deserialization", "CRITICAL", 11) # pickle.load in method
             self._assert_finding_present(findings, "Risky Call", "CRITICAL", 14) # exec in function
-            self._assert_finding_present(findings, "Insecure Deserialization", "CRITICAL", 2) # import pickle
+            self._assert_finding_present(findings, "Insecure Deserialization", "CRITICAL", 3) # import pickle
         finally:
             os.remove(temp_file_path)
 

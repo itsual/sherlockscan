@@ -21,22 +21,11 @@ try:
     from sherlockscan.scanner import ast_scanner, heuristics, deps, install_script_analyzer
     from sherlockscan.report import json_formatter, markdown_formatter
     from sherlockscan.scanner import explainer
-    # Placeholder for utility functions (package handling, file iteration)
-    # from sherlockscan import utils 
+    from sherlockscan import utils
 except ImportError as e:
     print(f"Error: Failed to import SherlockScan modules. Make sure the package is installed correctly or PYTHONPATH is set.")
     print(f"Details: {e}")
     sys.exit(1)
-
-# --- Library Imports ---
-try:
-    from importlib import metadata as importlib_metadata
-except ImportError:
-    try:
-        import importlib_metadata # type: ignore
-    except ImportError:
-        print("Error: importlib.metadata (or backport) not found. Dependency scanning requires Python 3.8+ or `pip install importlib-metadata`.")
-        importlib_metadata = None # type: ignore 
 
 # --- Configuration ---
 # Configure logging for the CLI tool
@@ -102,61 +91,19 @@ def _filter_findings_by_severity(findings: List[Dict[str, Any]], min_severity: s
              
     return filtered_findings
 
-# --- Placeholder Functions (Replace with actual utils.py implementations) ---
-
 def _get_package_path_and_info(target: str) -> Optional[Tuple[Path, str, Optional[str]]]:
-    """
-    Placeholder: Determines package directory, name, and version.
-    Handles downloading if 'target' is a package name from PyPI.
-    Returns (package_dir_path, package_name, package_version) or None on failure.
-    """
+    """Determines package directory, name, and version using utils.resolve_package_target."""
     logging.info(f"Resolving package target: {target}")
-    # TODO: Implement actual logic in utils.py
-    # - Check if target is a local path (dir, wheel, sdist) -> extract if needed, find root, parse metadata
-    # - Check if target is a package name -> download using pip, get install path, parse metadata
-    # For now, simulate finding an installed package using importlib.metadata
-    if importlib_metadata:
-        try:
-            # Attempt to treat target as an installed package name
-            dist = importlib_metadata.distribution(target)
-            package_name = dist.metadata['Name']
-            package_version = dist.version
-            # Finding the actual source path from metadata is complex/unreliable.
-            # For scanning, we might need to re-download the source or rely on scanning the installed files.
-            # Let's assume we have a path for now (e.g., by downloading source).
-            # This needs a robust implementation in utils.py
-            logging.warning("Using placeholder package path resolution. Implement utils.get_package_path_and_info")
-            # Simulate finding source in a temp dir (replace with actual logic)
-            simulated_path = Path(f"./temp_pkg_src/{package_name}")
-            if not simulated_path.exists(): simulated_path.mkdir(parents=True, exist_ok=True) # Create dummy dir
-            return simulated_path, package_name, package_version
-        except importlib_metadata.PackageNotFoundError:
-            logging.error(f"Package '{target}' not found locally and PyPI download not implemented yet.")
-            return None
-        except Exception as e:
-            logging.error(f"Error resolving package '{target}': {e}")
-            return None
-    else:
-        logging.error("Cannot resolve package: importlib.metadata not available.")
+    try:
+        return utils.resolve_package_target(target)
+    except Exception as e:
+        logging.error(f"Error resolving package '{target}': {e}")
         return None
 
 
 def _find_python_files(package_dir: Path) -> List[Path]:
-    """Placeholder: Finds all .py files within the package directory."""
-    logging.debug(f"Searching for Python files in: {package_dir}")
-    # TODO: Implement actual logic in utils.py (e.g., using Path.rglob)
-    logging.warning("Using placeholder Python file finder. Implement utils.find_python_files")
-    # Simulate finding a couple of files (replace with actual logic)
-    if not package_dir.exists(): return []
-    py_files = list(package_dir.rglob("*.py"))
-    # Create dummy files if none found for testing
-    if not py_files and package_dir.name != ".":
-        (package_dir / "module1.py").touch()
-        (package_dir / "subdir").mkdir(exist_ok=True)
-        (package_dir / "subdir/module2.py").touch()
-        py_files = list(package_dir.rglob("*.py"))
-    logging.info(f"Found {len(py_files)} Python files to scan.")
-    return py_files
+    """Finds all .py files within the package directory using utils.find_python_files."""
+    return utils.find_python_files(package_dir)
 
 # --- Typer Command ---
 
