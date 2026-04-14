@@ -72,6 +72,9 @@ graph TD
     style K fill:#ccf,stroke:#333,stroke-width:2px
     style M fill:#fcf,stroke:#333,stroke-width:2px
     style N fill:#9f9,stroke:#333,stroke-width:2px
+
+```
+
 Resolve Package Target: Determines if the input is a local directory, an archive file, or a package name from PyPI. Downloads and extracts if necessary using pip download and standard archive libraries. Finds the package source root.Scan Install Scripts: Analyzes setup.py (using AST) and pyproject.toml (using TOML parsing) for risky commands or configurations executed during build/installation.Scan Dependencies: Parses package metadata (using importlib.metadata on the installed package currently) to find direct dependencies. Checks these against approved_packages.yaml.Scan Source Files: Recursively finds all .py files.AST Analysis: Parses each file into an Abstract Syntax Tree. Traverses the tree to find specific function calls (eval, pickle.load, os.system, etc.) and module imports (requests, socket, subprocess, etc.) defined as risky.Heuristic Analysis: Reads each file line-by-line. Applies regex patterns (from risk_patterns.yaml) to detect secrets. Checks for suspicious keywords (from risk_patterns.yaml). Calculates Shannon entropy to flag potentially obfuscated lines/strings.Aggregate & Report: Collects all findings from all stages. Calculates a summary (counts by severity) and determines an overall risk level. Generates a human-readable explanation. Formats the final report in JSON or Markdown.🚀 InstallationEnsure you have Python 3.8+ installed. You can install SherlockScan using pip:pip install sherlockscan # Replace with actual PyPI name when published
 # Or install directly from source:
 # git clone [https://github.com/yourusername/sherlockscan.git](https://github.com/yourusername/sherlockscan.git) # TODO: Update URL
