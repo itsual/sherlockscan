@@ -187,7 +187,7 @@ def scan(
     try:
         all_findings.extend(install_script_analyzer.scan_install_scripts(str(package_dir)))
     except Exception as e:
-        logging.error(f"Error during install script analysis: {e}", exp_info=True)
+        logging.error(f"Error during install script analysis: {e}", exc_info=True)
 
     # 3b. Dependency Analysis
     logging.info("Running dependency analysis...")
