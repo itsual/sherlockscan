@@ -12,7 +12,6 @@ import tempfile
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
-# --- SherlockScan Core Imports ---
 try:
     from sherlockscan.scanner import ast_scanner, heuristics, deps, install_script_analyzer
     from sherlockscan.report import json_formatter, markdown_formatter
@@ -23,7 +22,6 @@ except ImportError as e:
     print(f"Details: {e}")
     sys.exit(1)
 
-# --- Library Imports ---
 try:
     from importlib import metadata as importlib_metadata
 except ImportError:
@@ -33,12 +31,10 @@ except ImportError:
         print("Error: importlib.metadata (or backport) not found. Dependency scanning requires Python 3.8+ or `pip install importlib-metadata`.")
         importlib_metadata = None  # type: ignore
 
-# --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
 DEFAULT_SEVERITY_THRESHOLD = "INFO"
 
-# --- Typer App Initialization ---
 app = typer.Typer(
     name="sherlockscan",
     help="SherlockScan: A tool to analyze Python packages for potential security risks.",
@@ -161,7 +157,7 @@ def scan(
     try:
         all_findings.extend(install_script_analyzer.scan_install_scripts(str(package_dir)))
     except Exception as e:
-        logging.error(f"Error during install script analysis: {e}", exc_info=True)
+        logging.error(f"Error during install script analysis: {e}", exp_info=True)
 
     logging.info("Running dependency analysis...")
     try:
