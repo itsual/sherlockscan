@@ -44,13 +44,13 @@ regex_patterns:
     severity: HIGH # High due to potential false positives
     message: "Potential Azure Storage Account Key detected (Base64 string, length 88)."
 
-  - name: Azure Service Principal Client Secret
+  - name: Azure Service Principal Client Secret Assignment
     type: Hardcoded Secret
-    # Matches common patterns for Azure AD client secrets (often high entropy, specific chars, length ~40-44)
-    # This is a heuristic and may have false positives/negatives. Combining with entropy check might be better.
-    pattern: '[a-zA-Z0-9\.\-_~]{30,}' # Generic high-entropy-like string, adjust length/chars as needed
+    # Require a security-relevant assignment name. A bare high-entropy string is
+    # not sufficient evidence and created an unacceptable number of false positives.
+    pattern: '(?i)\b(?:azure_)?client_secret\b\s*[:=]\s*["'']([a-z0-9._\-~]{30,})["'']'
     severity: HIGH
-    message: "Potential Azure Service Principal Client Secret or similar high-entropy key detected."
+    message: "Potential Azure Service Principal client-secret assignment detected."
 
   # --- SaaS & API Tokens ---
   - name: GitHub Token
@@ -113,7 +113,7 @@ regex_patterns:
   - name: Generic API Key Variable Assignment
     type: Hardcoded Secret
     # Matches common API key patterns assigned to variables
-    pattern: '(?i)(key|token|secret|password|apikey|api_key|client_secret|auth_token)\s*[:=]\s*["'']?([a-z0-9_.\-+!@#$%^&*()=]{16,})["'']?'
+    pattern: '(?i)\b(?:api[_-]?key|token|secret|password|client[_-]?secret|auth[_-]?token)\b\s*[:=]\s*["'']([a-z0-9_.\-+!@#$%^&*()=]{16,})["'']'
     severity: HIGH
     message: "Potential generic API key or secret variable assignment detected."
 
