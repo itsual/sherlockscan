@@ -48,7 +48,7 @@ def _format_finding(finding: Dict[str, Any]) -> str:
     message = finding.get('message', 'No details provided.')
     file_path = finding.get('file_path', 'N/A')
     line_number = finding.get('line_number')
-    code_snippet = finding.get('code_snippet', '').strip()
+    code_snippet = (finding.get('code_snippet') or '').strip()
 
     # Header for the finding
     details.append(f"### {f_type} (`{severity}`)")
@@ -77,7 +77,8 @@ def format_report_markdown(
     findings: List[Dict[str, Any]],
     summary: Dict[str, Any], # Expects {'total_findings': int, 'by_severity': {'CRITICAL': int, ...}}
     overall_risk_level: str, # e.g., "HIGH", "CRITICAL"
-    explanation: str
+    explanation: str,
+    full_summary: Optional[Dict[str, Any]] = None,
 ) -> str:
     """
     Formats the scan results into a Markdown string.
@@ -114,7 +115,12 @@ def format_report_markdown(
 
     # --- Summary Table ---
     md_parts.append("## Findings Summary")
+    if full_summary and full_summary != summary:
+        md_parts.append("The table below covers findings shown after severity filtering. The complete scan summary is also included for context.")
     md_parts.append(_format_summary_table(summary))
+    if full_summary and full_summary != summary:
+        md_parts.append("### Complete Scan Summary")
+        md_parts.append(_format_summary_table(full_summary))
     md_parts.append("\n---\n")
 
     # --- Detailed Findings ---
@@ -202,4 +208,3 @@ if __name__ == '__main__':
     # Print the result
     print("\nFormatted Markdown Output:\n")
     print(markdown_output)
-

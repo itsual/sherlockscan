@@ -20,7 +20,8 @@ def format_report_json(
     findings: List[Dict[str, Any]],
     summary: Dict[str, Any], # Expects {'total_findings': int, 'by_severity': {'CRITICAL': int, ...}}
     overall_risk_level: str, # e.g., "HIGH", "CRITICAL"
-    explanation: str
+    explanation: str,
+    full_summary: Optional[Dict[str, Any]] = None,
 ) -> str:
     """
     Formats the scan results into a JSON string according to the defined structure.
@@ -39,7 +40,7 @@ def format_report_json(
     logging.debug(f"Formatting report to JSON for package: {package_name}")
 
     # Get current timestamp in ISO 8601 format (UTC)
-    scan_timestamp = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+    scan_timestamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
     # Construct the report dictionary
     report_data = {
@@ -49,6 +50,7 @@ def format_report_json(
         "overall_risk_level": overall_risk_level,
         "findings": findings,
         "summary": summary,
+        "full_summary": full_summary or summary,
         "explanation": explanation
     }
 
@@ -135,5 +137,4 @@ if __name__ == '__main__':
     )
     print("Output on TypeError:")
     print(error_output) # Should print "{}"
-
 
