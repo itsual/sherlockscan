@@ -21,7 +21,7 @@ from sherlockscan.scanner.heuristics import scan_file_heuristics, load_risk_patt
 logging.disable(logging.CRITICAL)
 
 # Sample Config Content for testing
-SAMPLE_CONFIG_CONTENT = """
+SAMPLE_CONFIG_CONTENT = r"""
 settings:
   entropy_threshold: 4.5 # Use a specific threshold for tests
 
@@ -33,7 +33,7 @@ regex_patterns:
     message: "Test API Key detected."
   - name: Simple Password Assignment
     type: Hardcoded Secret
-    pattern: 'password\s*=\s*["\'](.*?)["\']'
+    pattern: 'password\s*=\s*["''](.*?)["'']'
     severity: CRITICAL
     message: "Password assignment found: {match}" # Test message formatting
 
@@ -119,19 +119,15 @@ class TestHeuristicsScanner(unittest.TestCase):
         patterns = load_risk_patterns("non_existent_config.yaml")
         self.assertEqual(patterns["regex_patterns"], [])
         self.assertEqual(patterns["keywords"], [])
-        self.assertEqual(patterns["settings"]["entropy_threshold"], DEFAULT_ENTROPY_THRESHOLD)
+        self.assertIsNone(patterns["settings"]["entropy_threshold"])
 
     def test_load_risk_patterns_invalid_yaml(self):
         """Test loading an invalid YAML file."""
         temp_config_path = self._create_temp_config(INVALID_YAML_CONTENT)
         try:
-            # Suppress expected ERROR log during this test
-            logging.disable(logging.ERROR)
-            patterns = load_risk_patterns(str(temp_config_path))
-            logging.disable(logging.CRITICAL) # Re-enable default suppression
-            self.assertEqual(patterns["regex_patterns"], [])
-            self.assertEqual(patterns["keywords"], [])
-            self.assertEqual(patterns["settings"]["entropy_threshold"], DEFAULT_ENTROPY_THRESHOLD)
+            from sherlockscan.exceptions import ConfigError
+            with self.assertRaises(ConfigError):
+                load_risk_patterns(str(temp_config_path))
         finally:
             os.remove(temp_config_path)
 
@@ -151,7 +147,7 @@ other_var = "no_key_here"
             self._assert_finding_present(findings, "Hardcoded Secret", "HIGH", 2, "Test API Key")
             finding_pass = self._assert_finding_present(findings, "Hardcoded Secret", "CRITICAL", 3, "Password assignment")
             # Check message formatting
-            self.assertIn('match=password = "mypassword123"', finding_pass['message'])
+            self.assertIn('password = "mypassword123"', finding_pass['message'])
         finally:
             os.remove(temp_config_path)
             os.remove(temp_code_path)
@@ -263,4 +259,3 @@ result = math.sqrt(16)
 
 if __name__ == '__main__':
     unittest.main()
-

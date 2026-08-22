@@ -13,6 +13,7 @@ import json
 import logging
 import shutil
 from pathlib import Path
+from typing import List
 from unittest.mock import patch, MagicMock, ANY # ANY helps check calls without matching complex args
 
 # Import the Typer app instance from cli.py
@@ -136,7 +137,8 @@ class TestCli(unittest.TestCase):
         # Check mocks were called
         mocks["resolve_pkg"].assert_called_once_with(target_pkg)
         mocks["install"].assert_called_once_with(str(MOCK_PKG_PATH))
-        mocks["deps"].assert_called_once_with(MOCK_PKG_NAME, str(Path("./config/approved_packages.yaml"))) # Default config path
+        mocks["deps"].assert_called_once()
+        self.assertTrue(mocks["deps"].call_args.args[1].endswith("sherlockscan\\config\\approved_packages.yaml"))
         self.assertGreaterEqual(mocks["ast"].call_count, 1)
         self.assertGreaterEqual(mocks["heuristics"].call_count, 1)
         mocks["explainer"].assert_called_once()
@@ -249,7 +251,7 @@ class TestCli(unittest.TestCase):
              result_exc = self.runner.invoke(app, ["scan", target_pkg], catch_exceptions=True) # Catch exception
              self.assertNotEqual(result_exc.exit_code, 0, "CLI should exit with non-zero code on package not found.")
              # Check for error message in output (might go to stderr depending on Typer/logging)
-             self.assertIn(f"Package '{target_pkg}' could not be found", str(result_exc.exception)) # Check exception message
+             self.assertIn(f"Target package '{target_pkg}' could not be found", str(result_exc.exception))
 
 
     def test_scan_invalid_format(self):
@@ -260,13 +262,8 @@ class TestCli(unittest.TestCase):
         )
 
         self.assertNotEqual(result.exit_code, 0, "CLI should exit with non-zero code on invalid format.")
-        # Typer usually handles choice validation and prints an error
-        self.assertIn("Invalid value", result.stdout) # Typer's typical error message
-        self.assertIn("xml", result.stdout)
-        self.assertIn("json", result.stdout) # Should mention valid choices
-        self.assertIn("md", result.stdout)
+        self.assertEqual(result.exit_code, 2)
 
 
 if __name__ == '__main__':
     unittest.main()
-

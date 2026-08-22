@@ -158,6 +158,34 @@ class TestUtils(unittest.TestCase):
         snippet = utils.get_code_snippet(self.test_dir / "non_existent.py", 1, context_lines=1)
         self.assertEqual(snippet, "N/A")
 
+    # --- Safe archive extraction ---
+    def test_extract_archive_rejects_zip_path_traversal(self):
+        archive_path = self.test_dir / "unsafe.zip"
+        extract_dir = self.test_dir / "extract"
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("../escaped.py", "print('unsafe')")
+        self.assertFalse(utils._extract_archive(archive_path, extract_dir))
+        self.assertFalse((self.test_dir / "escaped.py").exists())
+
+    def test_extract_archive_extracts_safe_zip(self):
+        archive_path = self.test_dir / "safe.zip"
+        extract_dir = self.test_dir / "extract"
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("package/module.py", "VALUE = 1\n")
+        self.assertTrue(utils._extract_archive(archive_path, extract_dir))
+        self.assertEqual((extract_dir / "package" / "module.py").read_text(), "VALUE = 1\n")
+
+    def test_find_python_files_excludes_tests_by_default(self):
+        (self.test_dir / "main.py").touch()
+        tests_dir = self.test_dir / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "test_main.py").touch()
+        self.assertEqual(utils.find_python_files(self.test_dir), [self.test_dir / "main.py"])
+        self.assertCountEqual(
+            utils.find_python_files(self.test_dir, include_tests=True),
+            [self.test_dir / "main.py", tests_dir / "test_main.py"],
+        )
+
     # --- Test resolve_package_target (Mocked Scenarios) ---
     # These tests are simplified and rely heavily on mocking internal helpers.
 
@@ -243,4 +271,3 @@ class TestUtils(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

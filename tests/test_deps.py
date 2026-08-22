@@ -22,7 +22,8 @@ try:
         scan_dependencies,
         load_approved_packages,
         get_package_dependencies, # We will mock this
-        parse_requirement
+        parse_requirement,
+        build_sbom,
     )
     # Also need canonicalize_name if testing load_approved_packages directly
     from packaging.utils import canonicalize_name 
@@ -37,6 +38,7 @@ logging.disable(logging.CRITICAL)
 
 # Sample Config Content for testing
 SAMPLE_APPROVED_PKGS_CONTENT = """
+enforce_allowlist: true
 allowlist:
   - requests
   - numpy # Canonical: numpy
@@ -126,6 +128,13 @@ class TestDependencyScanner(unittest.TestCase):
         self.assertIsNone(parse_requirement(">=1.0")) # No package name
         logging.disable(logging.CRITICAL) # Re-enable default
 
+    def test_build_sbom(self):
+        sbom = build_sbom("example-package", "1.0.0", ["requests>=2", "invalid requirement string"])
+        self.assertEqual(sbom["bomFormat"], "CycloneDX")
+        self.assertEqual(sbom["specVersion"], "1.5")
+        self.assertEqual(sbom["metadata"]["component"]["name"], "example-package")
+        self.assertEqual(sbom["components"][0]["name"], "requests")
+
     # --- Test Dependency Scanning Logic ---
     # We use mocking heavily here to avoid depending on the actual environment
 
@@ -212,4 +221,3 @@ blocklist:
 
 if __name__ == '__main__':
     unittest.main()
-
