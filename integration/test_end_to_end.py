@@ -13,6 +13,7 @@ import json
 import logging
 import shutil
 from pathlib import Path
+from typing import Dict, Optional
 from unittest.mock import patch # May still need minor mocking (e.g., package resolution if complex)
 
 # Import the Typer app instance from cli.py
@@ -91,7 +92,7 @@ def add(a, b):
     return a + b
 """
 
-RISKY_CONFIG_PATTERNS_YAML = """
+RISKY_CONFIG_PATTERNS_YAML = r"""
 settings:
   entropy_threshold: 4.0
 regex_patterns:
@@ -101,7 +102,7 @@ regex_patterns:
     severity: CRITICAL
   - name: Simple Password Assignment
     type: Hardcoded Secret
-    pattern: 'PASSWORD\s*=\s*["\'](.*?)["\']'
+    pattern: 'PASSWORD\s*=\s*["''](.*?)["'']'
     severity: HIGH
 keywords:
   - name: TODO Security
@@ -159,7 +160,7 @@ class TestEndToEnd(unittest.TestCase):
                  mod_path = package_path / mod_name
                  mod_path.parent.mkdir(parents=True, exist_ok=True)
                  with open(mod_path, "w") as f:
-                     f.write(content)
+                  f.write(content)
         return package_path
 
     def _create_dummy_config(self, patterns_content: Optional[str] = None, approved_content: Optional[str] = None):
@@ -300,14 +301,13 @@ class TestEndToEnd(unittest.TestCase):
             self.assertNotIn("Security Comment (`LOW`)", result.stdout)
 
             # Check summary table reflects filtered counts
-            self.assertIn("| CRITICAL   | 4     |", result.stdout) # 4 critical findings
+            self.assertIn("| CRITICAL   | 6     |", result.stdout) # install and source scanners both report setup behavior
             self.assertIn("| HIGH       | 1     |", result.stdout) # 1 high finding
             self.assertIn("| MEDIUM     | 0     |", result.stdout) # Filtered
             self.assertIn("| LOW        | 0     |", result.stdout) # Filtered
             self.assertIn("| INFO       | 0     |", result.stdout) # Filtered
-            self.assertIn("| **Total** | **5    ** |", result.stdout) # Total is 5
+            self.assertIn("| **Total** | **7    ** |", result.stdout)
 
 
 if __name__ == '__main__':
     unittest.main()
-
