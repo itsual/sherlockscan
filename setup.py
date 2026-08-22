@@ -52,7 +52,7 @@ try:
     LONG_DESCRIPTION = get_long_description()
 except FileNotFoundError:
     LONG_DESCRIPTION = DESCRIPTION # Fallback if README not found during setup run
-URL = "https://github.com/yourusername/sherlockscan" # TODO: Replace with actual repo URL
+URL = "https://github.com/itsual/sherlockscan"
 LICENSE = "MIT" # Match the license chosen (e.g., MIT)
 
 # --- Dependencies ---
@@ -142,4 +142,3 @@ setuptools.setup(
         # 'Documentation': 'https://your-docs-url.com', # Add if you have separate docs
     },
 )
-

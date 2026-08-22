@@ -147,6 +147,8 @@ sherlockscan scan <package_target> [OPTIONS]
 | `-f, --format [json\|md]` | Output format. Default is `md` (Markdown). |
 | `-c, --config PATH` | Path to the directory containing configuration files (`risk_patterns.yaml`, `approved_packages.yaml`). Defaults to `./config`. |
 | `-s, --severity [CRITICAL\|HIGH\|MEDIUM\|LOW\|INFO]` | Minimum severity level to report. Default is `INFO` (shows all). |
+| `--include-tests` | Include bundled test and fixture code. Tests are excluded by default to reduce noise. |
+| `--sbom PATH` | Write a CycloneDX 1.5 JSON software bill of materials. |
 
 **Examples:**
 
@@ -159,6 +161,9 @@ sherlockscan scan ./my_local_package/ -f json -o report.json -s HIGH
 
 # Scan a downloaded wheel file using custom config, print MD to console
 sherlockscan scan ./downloads/some_package-1.0-py3-none-any.whl -c ./my_configs/
+
+# Generate a report and a CycloneDX SBOM for CI or an audit trail
+sherlockscan scan requests --format json --output report.json --sbom sbom.cdx.json
 ```
 
 ---
@@ -260,6 +265,13 @@ keywords:
 
 * Defines an **allowlist** of explicitly approved dependency package names. If present and non-empty, any dependency not on this list will be flagged.
 * Defines a **blocklist** of explicitly forbidden dependency package names. Any dependency on this list will be flagged with high severity.
+* The DS/ML allowlist is supplied as a policy template. Set `enforce_allowlist: true` only when you want dependencies outside that policy to be reported.
+
+### Safety and report semantics
+
+SherlockScan does not install or import the package it analyzes. Downloads are extracted into a temporary directory with path traversal, links/devices, member-count, and uncompressed-size checks. Run the scanner in an isolated environment when investigating untrusted artifacts.
+
+Severity filtering controls the detailed findings shown in a report. The overall risk and `full_summary` always cover the complete scan, so a filtered report remains auditable even when lower-severity findings are hidden.
 * Package names are canonicalized (lowercase, hyphens) before comparison.
 
 ```yaml
