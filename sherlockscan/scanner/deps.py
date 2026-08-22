@@ -7,7 +7,10 @@ import logging
 import re
 import yaml
 import os
+import uuid
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Set, Optional
+from sherlockscan.exceptions import ConfigError
 
 try:
     from importlib import metadata as importlib_metadata
@@ -29,10 +32,11 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def load_approved_packages(config_path: str) -> Dict[str, Set[str]]:
-    approved_config: Dict[str, Set[str]] = {
+def load_approved_packages(config_path: str) -> Dict[str, Any]:
+    approved_config: Dict[str, Any] = {
         "allowlist": set(),
-        "blocklist": set()
+        "blocklist": set(),
+        "enforce_allowlist": False,
     }
     if not os.path.exists(config_path):
         logging.info(f"Optional approved packages config not found: {config_path}. No allow/block lists applied.")
@@ -48,8 +52,14 @@ def load_approved_packages(config_path: str) -> Dict[str, Set[str]]:
             if config_data is None:
                 return approved_config
 
+            if not isinstance(config_data, dict):
+                raise ConfigError(config_path, "top-level YAML value must be a mapping")
             raw_allowlist = config_data.get("allowlist", [])
             raw_blocklist = config_data.get("blocklist", [])
+            enforce_allowlist = config_data.get("enforce_allowlist", False)
+            if not isinstance(enforce_allowlist, bool):
+                raise ConfigError(config_path, "enforce_allowlist must be true or false")
+            approved_config["enforce_allowlist"] = enforce_allowlist
 
             if isinstance(raw_allowlist, list):
                  approved_config["allowlist"] = {canonicalize_name(pkg) for pkg in raw_allowlist if isinstance(pkg, str)}
@@ -64,11 +74,12 @@ def load_approved_packages(config_path: str) -> Dict[str, Set[str]]:
             return approved_config
             
     except yaml.YAMLError as e:
-        logging.error(f"Error parsing YAML configuration file {config_path}: {e}")
-        return {"allowlist": set(), "blocklist": set()}
+        raise ConfigError(config_path, f"invalid YAML: {e}") from e
+    except ConfigError:
+        raise
     except Exception as e:
         logging.error(f"Error loading configuration file {config_path}: {e}")
-        return {"allowlist": set(), "blocklist": set()}
+        raise ConfigError(config_path, str(e)) from e
 
 
 def get_package_dependencies(package_name: str) -> Optional[List[str]]:
@@ -113,7 +124,7 @@ def scan_dependencies(package_name: str, config_path: str) -> List[Dict[str, Any
     approved_config = load_approved_packages(config_path)
     allowlist = approved_config["allowlist"]
     blocklist = approved_config["blocklist"]
-    enforce_allowlist = bool(allowlist)
+    enforce_allowlist = approved_config["enforce_allowlist"] and bool(allowlist)
 
     requirements = get_package_dependencies(package_name)
     if requirements is None:
@@ -158,3 +169,35 @@ def scan_dependencies(package_name: str, config_path: str) -> List[Dict[str, Any
                  logging.debug(f"Dependency Finding: {finding}")
 
     return findings
+
+
+def build_sbom(package_name: str, package_version: Optional[str], requirements: List[str]) -> Dict[str, Any]:
+    """Create a small CycloneDX-compatible SBOM for the scanned distribution."""
+    components = []
+    for requirement in requirements:
+        parsed_name = parse_requirement(requirement)
+        if not parsed_name:
+            continue
+        version = None
+        try:
+            version = importlib_metadata.version(parsed_name) if importlib_metadata else None
+        except importlib_metadata.PackageNotFoundError:
+            pass
+        component = {"type": "library", "name": parsed_name, "purl": f"pkg:pypi/{parsed_name}"}
+        if version:
+            component["version"] = version
+            component["purl"] += f"@{version}"
+        component["properties"] = [{"name": "sherlockscan:requirement", "value": requirement}]
+        components.append(component)
+    root = {"type": "application", "name": package_name, "purl": f"pkg:pypi/{package_name}"}
+    if package_version:
+        root["version"] = package_version
+        root["purl"] += f"@{package_version}"
+    return {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.5",
+        "serialNumber": f"urn:uuid:{uuid.uuid4()}",
+        "version": 1,
+        "metadata": {"timestamp": datetime.now(timezone.utc).isoformat(), "component": root},
+        "components": components,
+    }

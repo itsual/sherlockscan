@@ -12,6 +12,7 @@ import logging
 import yaml
 import os
 from typing import List, Dict, Any, Optional
+from sherlockscan.exceptions import ConfigError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -44,33 +45,41 @@ def load_risk_patterns(config_path: str) -> Dict[str, Any]:
         A dictionary containing the loaded patterns and settings. 
         Returns an empty dictionary if loading fails.
     """
-    default_patterns = {
+    empty_patterns = {
         "regex_patterns": [],
         "keywords": [],
-        "settings": {"entropy_threshold": DEFAULT_ENTROPY_THRESHOLD}
+        "settings": {"entropy_threshold": None}
     }
     if not os.path.exists(config_path):
-        logging.warning(f"Configuration file not found: {config_path}. Using empty patterns.")
-        return default_patterns
+        logging.warning(f"Configuration file not found: {config_path}. Heuristic scanning is disabled.")
+        return empty_patterns
         
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             patterns = yaml.safe_load(f)
             if patterns is None:
-                return default_patterns
+                return empty_patterns
+            if not isinstance(patterns, dict):
+                raise ConfigError(config_path, "top-level YAML value must be a mapping")
             # Ensure top-level keys exist
             if "regex_patterns" not in patterns: patterns["regex_patterns"] = []
             if "keywords" not in patterns: patterns["keywords"] = []
             if "settings" not in patterns: patterns["settings"] = {}
+            if not isinstance(patterns["regex_patterns"], list) or not isinstance(patterns["keywords"], list):
+                raise ConfigError(config_path, "regex_patterns and keywords must be lists")
+            if not isinstance(patterns["settings"], dict):
+                raise ConfigError(config_path, "settings must be a mapping")
             if "entropy_threshold" not in patterns["settings"]:
                  patterns["settings"]["entropy_threshold"] = DEFAULT_ENTROPY_THRESHOLD
+            if not isinstance(patterns["settings"]["entropy_threshold"], (int, float)):
+                raise ConfigError(config_path, "settings.entropy_threshold must be numeric")
             return patterns
     except yaml.YAMLError as e:
-        logging.error(f"Error parsing YAML configuration file {config_path}: {e}")
-        return default_patterns
+        raise ConfigError(config_path, f"invalid YAML: {e}") from e
+    except ConfigError:
+        raise
     except Exception as e:
-        logging.error(f"Error loading configuration file {config_path}: {e}")
-        return default_patterns
+        raise ConfigError(config_path, str(e)) from e
 
 # --- Main Scanning Function ---
 
@@ -158,11 +167,14 @@ def scan_file_heuristics(file_path: str, config_path: str) -> List[Dict[str, Any
                             findings.append(finding)
                             logging.debug(f"Heuristic Keyword Finding: {finding}")
 
-                # 3. Entropy Scan (on the stripped line for now)
-                # More advanced: could extract variable names, string literals via AST first
-                # For MVP heuristic scan, check entropy of reasonably long strings/lines
-                if len(line_stripped) > 20: # Only check entropy on longer lines/strings
-                    entropy = calculate_entropy(line_stripped)
+                # 3. Entropy Scan. Only inspect quoted literals rather than entire source
+                # lines: identifiers, comments, and indentation otherwise create noisy alerts.
+                string_literals = re.findall(r'''(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)')''', line)
+                for double_quoted, single_quoted in string_literals:
+                    literal = double_quoted or single_quoted
+                    if entropy_threshold is None or len(literal) <= 20:
+                        continue
+                    entropy = calculate_entropy(literal)
                     if entropy > entropy_threshold:
                         finding = {
                             "type": "High Entropy",
@@ -172,10 +184,9 @@ def scan_file_heuristics(file_path: str, config_path: str) -> List[Dict[str, Any
                             "code_snippet": line_stripped[:150],
                             "message": f"High Shannon entropy ({entropy:.2f}) detected, potentially indicating obfuscated or packed data (threshold: {entropy_threshold:.2f})."
                         }
-                        # Avoid adding duplicate entropy warnings for same line if already added
                         if finding not in findings:
-                             findings.append(finding)
-                             logging.debug(f"Heuristic Entropy Finding: {finding}")
+                            findings.append(finding)
+                            logging.debug(f"Heuristic Entropy Finding: {finding}")
 
     except FileNotFoundError:
         logging.error(f"File not found during heuristic scan: {file_path}")
@@ -201,7 +212,7 @@ regex_patterns:
     message: "Potential AWS Access Key ID detected."
   - name: Generic Password Variable
     type: Hardcoded Secret
-    pattern: '(?i)password\s*=\s*["\'](.*?)["\']' # Finds password = "..."
+    pattern: r'''(?i)password\s*=\s*["'](.*?)["']''' # Finds password = "..."
     severity: HIGH
     message: "Potential hardcoded password variable detected."
 
@@ -231,7 +242,7 @@ password = "MySuperSecretPassword123"
 another_var = "thisisjustaregularstring"
 
 # High entropy string - maybe obfuscated?
-obfuscated = "X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*" # EICAR test string has high entropy
+    obfuscated = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*" # EICAR test string has high entropy
 
 # Keywords
 # TODO: security - need to fix this later
@@ -269,5 +280,3 @@ def normal_function():
     os.remove(tmp_config_path)
     os.remove(tmp_code_path)
     print(f"\nCleaned up dummy files.")
-
-
