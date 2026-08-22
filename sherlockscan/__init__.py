@@ -5,7 +5,7 @@ from logging import NullHandler
 
 # --- Package Version ---
 # Define package version in one place. Read dynamically in setup.py/pyproject.toml.
-__version__ = "0.1.0" # Initial MVP version
+__version__ = "0.2.0"
 
 
 # --- Configure Library Logging ---
@@ -51,4 +51,3 @@ except ImportError as e:
 # --- Optional Package-Level Initialization ---
 # Avoid complex logic here if possible. Keep it lightweight.
 # Example: logging.getLogger(__name__).debug(f"SherlockScan package ({__version__}) loaded.")
-

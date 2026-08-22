@@ -4,6 +4,7 @@
 # sherlockscan/cli.py
 
 import typer
+import json
 import logging
 import os
 import sys
@@ -11,6 +12,7 @@ import shutil
 import tempfile
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
+from sherlockscan.exceptions import ConfigError
 
 # --- SherlockScan Core Imports ---
 try:
@@ -116,9 +118,9 @@ def _get_package_path_and_info(target: str) -> Optional[Tuple[Path, str, Optiona
         return None
 
 
-def _find_python_files(package_dir: Path) -> List[Path]:
+def _find_python_files(package_dir: Path, include_tests: bool = False) -> List[Path]:
     """Finds all .py files within the package directory via utils."""
-    files = utils.find_python_files(Path(package_dir))
+    files = utils.find_python_files(Path(package_dir), include_tests=include_tests)
     logging.info(f"Found {len(files)} Python files to scan.")
     return files
 
@@ -151,7 +153,9 @@ def scan(
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Path to save the report file."),
     format: str = typer.Option("md", "--format", "-f", help="Output format ('json' or 'md'). Default is 'md'."),
     config_dir: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to the directory containing configuration files (risk_patterns.yaml, approved_packages.yaml). Defaults to the configs shipped with the package."),
-    severity: str = typer.Option(DEFAULT_SEVERITY_THRESHOLD, "--severity", "-s", help=f"Minimum severity level to report ({', '.join(SEVERITY_ORDER)}). Default: {DEFAULT_SEVERITY_THRESHOLD}.")
+    severity: str = typer.Option(DEFAULT_SEVERITY_THRESHOLD, "--severity", "-s", help=f"Minimum severity level to report ({', '.join(SEVERITY_ORDER)}). Default: {DEFAULT_SEVERITY_THRESHOLD}."),
+    include_tests: bool = typer.Option(False, "--include-tests", help="Also scan bundled test and fixture code."),
+    sbom: Optional[Path] = typer.Option(None, "--sbom", help="Write a CycloneDX 1.5 JSON SBOM to this path.")
 ):
     """
     Analyzes a Python package for potential security risks.
@@ -165,11 +169,21 @@ def scan(
         config_dir = packaged_config if packaged_config.is_dir() else Path("./config")
         logging.info(f"No config directory specified, using default: {config_dir}")
 
-    if not config_dir.is_dir():
-        logging.warning(f"Configuration directory not found: {config_dir}. Using default scanner settings and no allow/block lists.")
+    if severity.upper() not in SEVERITY_ORDER:
+        raise typer.BadParameter(f"Choose one of: {', '.join(SEVERITY_ORDER)}", param_hint="--severity")
+    if format.lower() not in {"json", "md"}:
+        raise typer.BadParameter("Choose 'json' or 'md'", param_hint="--format")
 
     risk_patterns_path = config_dir / "risk_patterns.yaml"
     approved_packages_path = config_dir / "approved_packages.yaml"
+    try:
+        # Validate both files once before scanning so malformed policy cannot
+        # silently turn into a successful but incomplete report.
+        heuristics.load_risk_patterns(str(risk_patterns_path))
+        deps.load_approved_packages(str(approved_packages_path))
+    except ConfigError as exc:
+        logging.error(str(exc))
+        raise typer.Exit(code=2)
 
     # --- 2. Resolve Package Path and Info ---
     package_info = _get_package_path_and_info(package_target)
@@ -199,7 +213,7 @@ def scan(
 
     # 3c. Source Code Analysis (AST and Heuristics)
     logging.info("Running source code analysis (AST & Heuristics)...")
-    python_files = _find_python_files(package_dir)
+    python_files = _find_python_files(package_dir, include_tests=include_tests)
     if not python_files:
         logging.warning(f"No Python files found in {package_dir} to scan.")
 
@@ -232,7 +246,7 @@ def scan(
     report_summary = _calculate_summary(filtered_findings)
 
     explanation = explainer.generate_overall_explanation(
-        filtered_findings, report_summary, package_name, overall_risk_level
+        all_findings, full_summary, package_name, overall_risk_level
     )
 
     # --- 5. Format Output ---
@@ -245,7 +259,8 @@ def scan(
             findings=filtered_findings,
             summary=report_summary,
             overall_risk_level=overall_risk_level,
-            explanation=explanation
+            explanation=explanation,
+            full_summary=full_summary,
         )
     elif format.lower() == "md":
         logging.info("Formatting report as Markdown...")
@@ -255,7 +270,8 @@ def scan(
             findings=filtered_findings,
             summary=report_summary,
             overall_risk_level=overall_risk_level,
-            explanation=explanation
+            explanation=explanation,
+            full_summary=full_summary,
         )
     else:
         logging.error(f"Invalid output format specified: '{format}'. Use 'json' or 'md'.")
@@ -273,6 +289,16 @@ def scan(
             raise typer.Exit(code=1)
     else:
         typer.echo(output_content)
+
+    if sbom:
+        try:
+            requirements = deps.get_package_dependencies(package_name) or []
+            sbom.parent.mkdir(parents=True, exist_ok=True)
+            sbom.write_text(json.dumps(deps.build_sbom(package_name, package_version, requirements), indent=2), encoding="utf-8")
+            logging.info(f"SBOM saved to: {sbom}")
+        except Exception as exc:
+            logging.error(f"Failed to write SBOM to {sbom}: {exc}")
+            raise typer.Exit(code=1)
 
     # Clean up any temporary directories created during package resolution
     _cleanup_temp_dir(package_dir)

@@ -12,7 +12,7 @@ import tarfile
 import zipfile
 import tempfile
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Iterable, List, Dict, Any, Optional, Tuple
 
 try:
     from importlib import metadata as importlib_metadata
@@ -26,13 +26,22 @@ from .exceptions import PackageNotFoundError, SherlockScanError
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+MAX_ARCHIVE_MEMBERS = 10_000
+MAX_ARCHIVE_UNCOMPRESSED_SIZE = 500 * 1024 * 1024
+TEST_PATH_PARTS = {
+    "test", "tests", "testing", "integration", "__pycache__", ".tox", ".nox", "build", "dist"
+}
 
-def find_python_files(package_dir: Path) -> List[Path]:
+
+def find_python_files(package_dir: Path, include_tests: bool = False) -> List[Path]:
     logging.debug(f"Searching for Python files in: {package_dir}")
     if not package_dir.is_dir():
         logging.warning(f"Provided path is not a directory: {package_dir}")
         return []
-    py_files = list(package_dir.rglob("*.py"))
+    py_files = [
+        path for path in package_dir.rglob("*.py")
+        if include_tests or not any(part.lower() in TEST_PATH_PARTS for part in path.relative_to(package_dir).parts)
+    ]
     logging.info(f"Found {len(py_files)} Python files in {package_dir}.")
     return py_files
 
@@ -65,17 +74,61 @@ def get_code_snippet(file_path: Path, line_number: int, context_lines: int = 2) 
     return "\n".join(snippet_lines)
 
 
+def _ensure_safe_destination(root: Path, member_name: str) -> Path:
+    """Return an archive destination only when it remains inside *root*."""
+    member = Path(member_name)
+    destination = (root / member).resolve()
+    if member.is_absolute() or ".." in member.parts or not destination.is_relative_to(root.resolve()):
+        raise SherlockScanError(f"Unsafe archive member path rejected: {member_name!r}")
+    return destination
+
+
+def _check_archive_limits(members: Iterable[Tuple[str, int]]) -> None:
+    """Protect the scanner from archive bombs before extracting any members."""
+    count = total_size = 0
+    for _, size in members:
+        count += 1
+        total_size += max(size, 0)
+        if count > MAX_ARCHIVE_MEMBERS:
+            raise SherlockScanError(f"Archive exceeds the {MAX_ARCHIVE_MEMBERS:,} member safety limit")
+        if total_size > MAX_ARCHIVE_UNCOMPRESSED_SIZE:
+            raise SherlockScanError("Archive exceeds the 500 MiB uncompressed safety limit")
+
+
 def _extract_archive(archive_path: Path, extract_dir: Path) -> bool:
     try:
+        extract_dir.mkdir(parents=True, exist_ok=True)
         if zipfile.is_zipfile(archive_path):
             logging.info(f"Extracting zip archive: {archive_path} to {extract_dir}")
             with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-                zip_ref.extractall(extract_dir)
+                infos = zip_ref.infolist()
+                _check_archive_limits((info.filename, info.file_size) for info in infos)
+                for info in infos:
+                    _ensure_safe_destination(extract_dir, info.filename)
+                    # A symlink is encoded in the high Unix file-mode bits.
+                    if (info.external_attr >> 16) & 0o170000 == 0o120000:
+                        raise SherlockScanError(f"Archive symlink rejected: {info.filename!r}")
+                for info in infos:
+                    destination = _ensure_safe_destination(extract_dir, info.filename)
+                    if info.is_dir():
+                        destination.mkdir(parents=True, exist_ok=True)
+                        continue
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    with zip_ref.open(info) as source, destination.open('wb') as target:
+                        shutil.copyfileobj(source, target)
             return True
         elif tarfile.is_tarfile(archive_path):
             logging.info(f"Extracting tar archive: {archive_path} to {extract_dir}")
             with tarfile.open(archive_path, "r:*") as tar_ref:
-                tar_ref.extractall(extract_dir)
+                members = tar_ref.getmembers()
+                _check_archive_limits((member.name, member.size) for member in members)
+                for member in members:
+                    _ensure_safe_destination(extract_dir, member.name)
+                    if member.issym() or member.islnk() or member.isdev():
+                        raise SherlockScanError(f"Archive link/device rejected: {member.name!r}")
+                # Members are validated individually; never use extractall on untrusted input.
+                for member in members:
+                    tar_ref.extract(member, path=extract_dir, set_attrs=False)
             return True
         else:
             logging.warning(f"Unsupported archive type: {archive_path}")
