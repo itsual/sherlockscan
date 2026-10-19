@@ -94,3 +94,9 @@ sherlock_e2e_*/
 
 # Add any other project-specific files or directories to ignore below
 
+# Local release verification assets
+.localtmp/
+.venv/
+.package-check/
+.release-check/
+review-artifacts/

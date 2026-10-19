@@ -1,313 +1,93 @@
-#!/usr/bin/env python
-# coding: utf-8
+"""Compatibility helpers. New callers should use engine.scan_package or ingestor.ingest."""
 
-# sherlockscan/utils.py
-
-import logging
-import os
-import sys
-import shutil
-import subprocess
-import tarfile
-import zipfile
-import tempfile
 from pathlib import Path
-from typing import Iterable, List, Dict, Any, Optional, Tuple
-
-try:
-    from importlib import metadata as importlib_metadata
-except ImportError:
-    try:
-        import importlib_metadata # type: ignore
-    except ImportError:
-        importlib_metadata = None # type: ignore
-
+import os
+import shutil
+import tempfile
 from .exceptions import PackageNotFoundError, SherlockScanError
+from .ingestor import ingest, read_archive, read_directory, safe_name
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-MAX_ARCHIVE_MEMBERS = 10_000
-MAX_ARCHIVE_UNCOMPRESSED_SIZE = 500 * 1024 * 1024
-TEST_PATH_PARTS = {
-    "test", "tests", "testing", "integration", "__pycache__", ".tox", ".nox", "build", "dist"
-}
+TEST_PATH_PARTS = {"test", "tests", "testing", "integration", "__pycache__", ".tox", ".nox", "build", "dist"}
 
 
-def find_python_files(package_dir: Path, include_tests: bool = False) -> List[Path]:
-    logging.debug(f"Searching for Python files in: {package_dir}")
+def find_python_files(package_dir, include_tests=False):
+    package_dir = Path(package_dir)
     if not package_dir.is_dir():
-        logging.warning(f"Provided path is not a directory: {package_dir}")
         return []
-    py_files = [
-        path for path in package_dir.rglob("*.py")
-        if include_tests or not any(part.lower() in TEST_PATH_PARTS for part in path.relative_to(package_dir).parts)
-    ]
-    logging.info(f"Found {len(py_files)} Python files in {package_dir}.")
-    return py_files
+    found = []
+    for current, dirs, files in os.walk(package_dir, followlinks=False):
+        dirs[:] = [
+            d
+            for d in dirs
+            if not (Path(current) / d).is_symlink() and (include_tests or d.lower() not in TEST_PATH_PARTS)
+        ]
+        found += [
+            Path(current) / name
+            for name in sorted(files)
+            if name.endswith(".py") and not (Path(current) / name).is_symlink()
+        ]
+    return sorted(found)
 
 
-def read_file_content(file_path: Path) -> Optional[str]:
+def read_file_content(file_path):
     try:
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            return f.read()
-    except FileNotFoundError:
-        logging.error(f"File not found: {file_path}")
-        return None
-    except Exception as e:
-        logging.error(f"Error reading file {file_path}: {e}")
+        return Path(file_path).read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
         return None
 
 
-def get_code_snippet(file_path: Path, line_number: int, context_lines: int = 2) -> str:
+def get_code_snippet(file_path, line_number, context_lines=2):
     content = read_file_content(file_path)
-    if content is None:
+    if content is None or not 1 <= line_number <= len(content.splitlines()):
         return "N/A"
     lines = content.splitlines()
-    if not (1 <= line_number <= len(lines)):
-        return "N/A"
-    start = max(0, line_number - 1 - context_lines)
-    end = min(len(lines), line_number + context_lines)
-    snippet_lines = lines[start:end]
-    target_index_in_snippet = line_number - 1 - start
-    if 0 <= target_index_in_snippet < len(snippet_lines):
-         snippet_lines[target_index_in_snippet] = f"> {snippet_lines[target_index_in_snippet]}"
-    return "\n".join(snippet_lines)
+    lines[line_number - 1] = "> " + lines[line_number - 1]
+    return "\n".join(lines[max(0, line_number - context_lines - 1) : line_number + context_lines])
 
 
-def _ensure_safe_destination(root: Path, member_name: str) -> Path:
-    """Return an archive destination only when it remains inside *root*."""
-    member = Path(member_name)
-    destination = (root / member).resolve()
-    if member.is_absolute() or ".." in member.parts or not destination.is_relative_to(root.resolve()):
-        raise SherlockScanError(f"Unsafe archive member path rejected: {member_name!r}")
-    return destination
+def _materialize(pkg, root):
+    root = root.resolve()
+    for name, data in pkg.files.items():
+        destination = root / safe_name(name)
+        # Never follow pre-existing filesystem links in this legacy extraction API.
+        if not destination.resolve().is_relative_to(root) or any(
+            p.is_symlink() for p in [destination, *destination.parents]
+        ):
+            raise ValueError("Extraction destination contains a link")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with destination.open("xb") as stream:
+            stream.write(data)
 
 
-def _check_archive_limits(members: Iterable[Tuple[str, int]]) -> None:
-    """Protect the scanner from archive bombs before extracting any members."""
-    count = total_size = 0
-    for _, size in members:
-        count += 1
-        total_size += max(size, 0)
-        if count > MAX_ARCHIVE_MEMBERS:
-            raise SherlockScanError(f"Archive exceeds the {MAX_ARCHIVE_MEMBERS:,} member safety limit")
-        if total_size > MAX_ARCHIVE_UNCOMPRESSED_SIZE:
-            raise SherlockScanError("Archive exceeds the 500 MiB uncompressed safety limit")
-
-
-def _extract_archive(archive_path: Path, extract_dir: Path) -> bool:
+def _extract_archive(archive_path, extract_dir):
     try:
-        extract_dir.mkdir(parents=True, exist_ok=True)
-        if zipfile.is_zipfile(archive_path):
-            logging.info(f"Extracting zip archive: {archive_path} to {extract_dir}")
-            with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-                infos = zip_ref.infolist()
-                _check_archive_limits((info.filename, info.file_size) for info in infos)
-                for info in infos:
-                    _ensure_safe_destination(extract_dir, info.filename)
-                    # A symlink is encoded in the high Unix file-mode bits.
-                    if (info.external_attr >> 16) & 0o170000 == 0o120000:
-                        raise SherlockScanError(f"Archive symlink rejected: {info.filename!r}")
-                for info in infos:
-                    destination = _ensure_safe_destination(extract_dir, info.filename)
-                    if info.is_dir():
-                        destination.mkdir(parents=True, exist_ok=True)
-                        continue
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    with zip_ref.open(info) as source, destination.open('wb') as target:
-                        shutil.copyfileobj(source, target)
-            return True
-        elif tarfile.is_tarfile(archive_path):
-            logging.info(f"Extracting tar archive: {archive_path} to {extract_dir}")
-            with tarfile.open(archive_path, "r:*") as tar_ref:
-                members = tar_ref.getmembers()
-                _check_archive_limits((member.name, member.size) for member in members)
-                for member in members:
-                    _ensure_safe_destination(extract_dir, member.name)
-                    if member.issym() or member.islnk() or member.isdev():
-                        raise SherlockScanError(f"Archive link/device rejected: {member.name!r}")
-                # Members are validated individually; never use extractall on untrusted input.
-                for member in members:
-                    tar_ref.extract(member, path=extract_dir, set_attrs=False)
-            return True
-        else:
-            logging.warning(f"Unsupported archive type: {archive_path}")
-            return False
-    except Exception as e:
-        logging.error(f"Failed to extract archive {archive_path}: {e}")
+        pkg = read_archive(Path(archive_path))
+        Path(extract_dir).mkdir(parents=True, exist_ok=True)
+        _materialize(pkg, Path(extract_dir))
+        return True
+    except Exception:
         return False
 
-def _run_pip_download(package_name: str, download_dir: Path) -> bool:
-    command = [
-        sys.executable,
-        "-m", "pip", "download",
-        "--no-deps",
-        "--dest", str(download_dir),
-        package_name
-    ]
-    logging.info(f"Attempting to download package '{package_name}' using pip: {' '.join(command)}")
+
+def _find_package_root_and_metadata(extracted_path):
+    pkg = read_directory(Path(extracted_path))
+    return Path(extracted_path), pkg.name, pkg.version
+
+
+def resolve_package_target(target):
+    """Legacy path API; caller must remove the returned sherlock_extract_* directory.
+
+    Unlike the v0.2 implementation, remote retrieval never runs pip or build hooks.
+    """
+    if Path(target).is_dir():
+        return _find_package_root_and_metadata(Path(target))
+    temporary = None
     try:
-        result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=300)
-        logging.debug(f"pip download stdout:\n{result.stdout}")
-        logging.debug(f"pip download stderr:\n{result.stderr}")
-        if any(p.name.lower().startswith(package_name.lower().replace('-', '_')) for p in download_dir.iterdir()):
-             logging.info(f"Successfully downloaded package '{package_name}' artifacts.")
-             return True
-        else:
-             logging.error(f"pip download completed but no artifacts found for '{package_name}' in {download_dir}.")
-             logging.error(f"Pip Output (stderr):\n{result.stderr}")
-             return False
-    except FileNotFoundError:
-        logging.error("Error: 'pip' command not found. Make sure pip is installed and in your PATH.")
-        return False
-    except subprocess.CalledProcessError as e:
-        logging.error(f"pip download failed for '{package_name}'.")
-        logging.error(f"Command: {' '.join(e.cmd)}")
-        logging.error(f"Return Code: {e.returncode}")
-        logging.error(f"Output (stdout):\n{e.stdout}")
-        logging.error(f"Output (stderr):\n{e.stderr}")
-        return False
-    except subprocess.TimeoutExpired:
-        logging.error(f"pip download timed out for '{package_name}'.")
-        return False
-    except Exception as e:
-        logging.error(f"An unexpected error occurred during pip download for '{package_name}': {e}")
-        return False
-
-
-def _find_package_root_and_metadata(extracted_path: Path) -> Optional[Tuple[Path, Optional[str], Optional[str]]]:
-    package_name = None
-    package_version = None
-    package_root = extracted_path
-
-    metadata_dirs = list(extracted_path.glob('*.dist-info')) + list(extracted_path.glob('*.egg-info'))
-    if metadata_dirs and importlib_metadata:
-        try:
-            dist = importlib_metadata.PathDistribution(metadata_dirs[0])
-            package_name = dist.metadata['Name']
-            package_version = dist.version
-            logging.info(f"Found metadata via PathDistribution: Name={package_name}, Version={package_version}")
-            return package_root, package_name, package_version
-        except Exception as e:
-            logging.warning(f"Could not parse metadata using PathDistribution from {metadata_dirs[0]}: {e}. Falling back.")
-            metadata_file = metadata_dirs[0] / 'METADATA'
-            if not metadata_file.exists() and metadata_dirs[0].name.endswith('.egg-info'):
-                 metadata_file = metadata_dirs[0] / 'PKG-INFO'
-            if metadata_file.exists():
-                logging.debug(f"Attempting to parse metadata file: {metadata_file}")
-                content = read_file_content(metadata_file)
-                if content:
-                    for line in content.splitlines():
-                        if line.lower().startswith("name:"):
-                            package_name = line.split(":", 1)[1].strip()
-                        elif line.lower().startswith("version:"):
-                            package_version = line.split(":", 1)[1].strip()
-                        if package_name and package_version:
-                            break
-                    logging.info(f"Found metadata via file parsing: Name={package_name}, Version={package_version}")
-                    return package_root, package_name, package_version
-
-    potential_root = extracted_path
-    setup_py = list(extracted_path.rglob('setup.py'))
-    pyproject_toml = list(extracted_path.rglob('pyproject.toml'))
-
-    if setup_py:
-        potential_root = setup_py[0].parent
-        logging.debug(f"Found setup.py, potential root: {potential_root}")
-    elif pyproject_toml:
-        potential_root = pyproject_toml[0].parent
-        logging.debug(f"Found pyproject.toml, potential root: {potential_root}")
-        try:
-            import toml
-            content = read_file_content(pyproject_toml[0])
-            if content:
-                 data = toml.loads(content)
-                 package_name = data.get("project", {}).get("name") or data.get("tool", {}).get("poetry", {}).get("name")
-                 package_version = data.get("project", {}).get("version") or data.get("tool", {}).get("poetry", {}).get("version")
-                 if package_name:
-                     logging.info(f"Found metadata via pyproject.toml: Name={package_name}, Version={package_version}")
-        except ImportError:
-             logging.warning("Cannot parse pyproject.toml metadata: 'toml' library not installed.")
-        except Exception as e:
-             logging.warning(f"Failed to parse pyproject.toml for metadata: {e}")
-
-    if not package_name and potential_root != extracted_path:
-         dir_name = potential_root.name
-         parts = dir_name.split('-')
-         if len(parts) > 1 and parts[-1][0].isdigit():
-             package_version = parts[-1]
-             package_name = '-'.join(parts[:-1])
-             logging.info(f"Inferred metadata from directory: Name={package_name}, Version={package_version}")
-
-    if not package_name:
-         logging.warning(f"Could not determine package name for path: {extracted_path}")
-         package_name = extracted_path.name
-
-    logging.info(f"Determined package root: {potential_root}")
-    return potential_root, package_name, package_version
-
-
-def resolve_package_target(target: str) -> Tuple[Path, str, Optional[str]]:
-    target_path = Path(target)
-    temp_dir_path = None
-
-    try:
-        if target_path.is_dir():
-            logging.info(f"Target is a local directory: {target_path}")
-            package_root, name, version = _find_package_root_and_metadata(target_path)
-            if not name: name = target_path.name
-            return package_root, name, version
-
-        elif target_path.is_file():
-            logging.info(f"Target is a local file: {target_path}")
-            temp_dir_path = tempfile.mkdtemp(prefix="sherlock_extract_")
-            extract_dir = Path(temp_dir_path)
-            if _extract_archive(target_path, extract_dir):
-                 package_root, name, version = _find_package_root_and_metadata(extract_dir)
-                 if not name: name = target_path.stem.split('-')[0]
-                 logging.warning("Returning path within temporary directory. Ensure cleanup.")
-                 return package_root, name, version
-            else:
-                 raise SherlockScanError(f"Failed to extract archive: {target_path}")
-
-        else:
-            logging.info(f"Target '{target}' not found locally, attempting PyPI download.")
-            temp_dir_path = tempfile.mkdtemp(prefix="sherlock_download_")
-            download_dir = Path(temp_dir_path)
-            if _run_pip_download(target, download_dir):
-                downloaded_files = list(download_dir.iterdir())
-                if not downloaded_files:
-                    raise SherlockScanError(f"Pip download succeeded but no files found in {download_dir}")
-
-                archive_path = None
-                sdist_files = [f for f in downloaded_files if f.name.endswith('.tar.gz') or f.name.endswith('.zip')]
-                wheel_files = [f for f in downloaded_files if f.name.endswith('.whl')]
-
-                if sdist_files:
-                    archive_path = sdist_files[0]
-                    logging.info(f"Found downloaded source distribution: {archive_path}")
-                elif wheel_files:
-                    archive_path = wheel_files[0]
-                    logging.info(f"Found downloaded wheel file: {archive_path}")
-                else:
-                    raise SherlockScanError(f"Downloaded files, but could not find source dist or wheel for {target} in {download_dir}")
-
-                extract_dir = download_dir / "extracted"
-                extract_dir.mkdir()
-                if _extract_archive(archive_path, extract_dir):
-                    package_root, name, version = _find_package_root_and_metadata(extract_dir)
-                    if not name: name = target
-                    logging.warning("Returning path within temporary directory. Ensure cleanup.")
-                    return package_root, name, version
-                else:
-                    raise SherlockScanError(f"Failed to extract downloaded archive: {archive_path}")
-            else:
-                raise PackageNotFoundError(target)
-
-    except Exception as e:
-        if temp_dir_path:
-            shutil.rmtree(temp_dir_path, ignore_errors=True)
-        if isinstance(e, (PackageNotFoundError, SherlockScanError)):
-            raise e
-        else:
-            raise SherlockScanError(f"Failed to resolve package target '{target}': {e}") from e
+        pkg = ingest(target)
+        temporary = Path(tempfile.mkdtemp(prefix="sherlock_extract_"))
+        _materialize(pkg, temporary)
+        return temporary, pkg.name, pkg.version
+    except Exception as exc:
+        if temporary:
+            shutil.rmtree(temporary)
+        raise SherlockScanError("Could not resolve package target statically") from exc

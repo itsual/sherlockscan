@@ -2,23 +2,35 @@ name: Publish to PyPI
 
 on:
   workflow_dispatch:
+    inputs:
+      release_reviewed:
+        description: Maintainer has reviewed and approved this exact release commit
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   build:
+    if: ${{ inputs.release_reviewed && github.ref == 'refs/heads/main' }}
     name: Build distribution artifacts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Build source distribution and wheel
         run: |
-          python -m pip install --upgrade build
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e ".[dev]"
+          python -m pytest
+          python -m ruff check sherlockscan tests integration scripts
           python -m build
+          python -m twine check dist/*
+          python scripts/check_distributions.py
       - uses: actions/upload-artifact@v4
         with:
           name: python-package-distributions

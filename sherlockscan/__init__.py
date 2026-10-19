@@ -5,7 +5,7 @@ from logging import NullHandler
 
 # --- Package Version ---
 # Define package version in one place. Read dynamically in setup.py/pyproject.toml.
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 
 # --- Configure Library Logging ---

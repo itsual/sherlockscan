@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Set, Optional
 from sherlockscan.exceptions import ConfigError
+from sherlockscan.findings import redact_url_credentials
 
 try:
     from importlib import metadata as importlib_metadata
@@ -56,6 +57,9 @@ def load_approved_packages(config_path: str) -> Dict[str, Any]:
                 raise ConfigError(config_path, "top-level YAML value must be a mapping")
             raw_allowlist = config_data.get("allowlist", [])
             raw_blocklist = config_data.get("blocklist", [])
+            if any(not isinstance(value, list) or any(not isinstance(pkg, str) or not pkg.strip() for pkg in value)
+                   for value in (raw_allowlist, raw_blocklist)):
+                raise ConfigError(config_path, "allowlist/blocklist require lists of nonempty package names")
             enforce_allowlist = config_data.get("enforce_allowlist", False)
             if not isinstance(enforce_allowlist, bool):
                 raise ConfigError(config_path, "enforce_allowlist must be true or false")
@@ -64,12 +68,12 @@ def load_approved_packages(config_path: str) -> Dict[str, Any]:
             if isinstance(raw_allowlist, list):
                  approved_config["allowlist"] = {canonicalize_name(pkg) for pkg in raw_allowlist if isinstance(pkg, str)}
             else:
-                 logging.warning(f"Invalid format for 'allowlist' in {config_path}. Expected a list.")
+                 raise ConfigError(config_path, "allowlist must be a list")
 
             if isinstance(raw_blocklist, list):
                  approved_config["blocklist"] = {canonicalize_name(pkg) for pkg in raw_blocklist if isinstance(pkg, str)}
             else:
-                 logging.warning(f"Invalid format for 'blocklist' in {config_path}. Expected a list.")
+                 raise ConfigError(config_path, "blocklist must be a list")
 
             return approved_config
             
@@ -178,16 +182,14 @@ def build_sbom(package_name: str, package_version: Optional[str], requirements: 
         parsed_name = parse_requirement(requirement)
         if not parsed_name:
             continue
+        # Declared constraints are not installed/resolved versions. Never borrow
+        # the scanner environment's version for a different artifact's SBOM.
         version = None
-        try:
-            version = importlib_metadata.version(parsed_name) if importlib_metadata else None
-        except importlib_metadata.PackageNotFoundError:
-            pass
         component = {"type": "library", "name": parsed_name, "purl": f"pkg:pypi/{parsed_name}"}
         if version:
             component["version"] = version
             component["purl"] += f"@{version}"
-        component["properties"] = [{"name": "sherlockscan:requirement", "value": requirement}]
+        component["properties"] = [{"name": "sherlockscan:requirement", "value": redact_url_credentials(requirement)}]
         components.append(component)
     root = {"type": "application", "name": package_name, "purl": f"pkg:pypi/{package_name}"}
     if package_version:

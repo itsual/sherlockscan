@@ -21,6 +21,10 @@ global-exclude __pycache__
 # (find_packages in setup.py already excludes tests from installation,
 # but pruning them from the sdist is also good practice).
 prune tests
+prune integration
+graft docs
+include CHANGELOG.md
+include SECURITY.md
 
 # One can add other files here if needed, like documentation files, examples etc. if needed during enhancements
 # Example: graft docs

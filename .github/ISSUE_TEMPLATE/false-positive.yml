@@ -1,0 +1,33 @@
+name: False positive or unclear finding
+description: Help improve a rule using a sanitized, reproducible example.
+title: "[Finding review] "
+labels: ["false-positive"]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, proprietary source or complete payloads. A finding is a review lead, not proof of maliciousness.
+  - type: input
+    id: version
+    attributes:
+      label: SherlockScan version and Python version
+    validations:
+      required: true
+  - type: input
+    id: rule
+    attributes:
+      label: Rule ID, artifact name/version and SHA-256
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Sanitized reproduction and scan options
+      description: Include a minimal harmless example and the finding's explanation.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Why this behavior is legitimate and what the rule should report
+    validations:
+      required: true

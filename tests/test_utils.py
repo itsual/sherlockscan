@@ -208,66 +208,22 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(pkg_name, expected_name)
         self.assertEqual(pkg_version, expected_version)
 
-    @patch('sherlockscan.utils.subprocess.run')
-    @patch('sherlockscan.utils._extract_archive')
-    @patch('sherlockscan.utils._find_package_root_and_metadata')
-    def test_resolve_target_pypi_download_success(self, mock_find_meta, mock_extract, mock_pip):
-        """Test resolving a PyPI package with mocked successful download and extraction."""
-        target_pkg = "requests"
-        expected_name = "requests"
-        expected_version = "2.25.1" # Example version
-        
-        # Configure mocks
-        mock_pip.return_value = MagicMock(stdout="Successfully downloaded requests", stderr="", returncode=0)
-        # Simulate pip downloading an archive file
-        # Need to handle the fact that resolve_package_target creates a temp dir
-        # We can patch tempfile.TemporaryDirectory or check calls to _run_pip_download
-        
-        mock_extract.return_value = True # Simulate successful extraction
-        # Simulate metadata found after extraction
-        # The path passed to mock_find_meta will be inside a temp dir
-        mock_find_meta.return_value = (Path("/tmp/sherlock_download_xyz/extracted/requests-2.25.1"), expected_name, expected_version)
+    def test_remote_resolution_uses_static_ingestor(self):
+        from sherlockscan.ingestor import Package
+        package = Package(name="demo", version="1.0", files={"demo.py": b"value=1"})
+        with patch('sherlockscan.utils.ingest', return_value=package) as ingest:
+            path, name, version = utils.resolve_package_target("demo==1.0")
+        try:
+            ingest.assert_called_once_with("demo==1.0")
+            self.assertEqual((name, version), ("demo", "1.0"))
+            self.assertEqual((path / "demo.py").read_bytes(), b"value=1")
+        finally:
+            shutil.rmtree(path)
 
-        # We need to ensure the check for downloaded files passes in _run_pip_download
-        # Patch Path.iterdir within the scope of the test? Or patch the check itself?
-        # Let's patch iterdir called on the temporary download directory.
-        with patch('pathlib.Path.iterdir', return_value=[Path(f"{target_pkg}-1.0.tar.gz")]): # Simulate a downloaded file exists
-             # Patch tempfile.TemporaryDirectory to control the path
-             with patch('tempfile.TemporaryDirectory') as mock_tempdir:
-                 # Make the mock return our test directory path when entered
-                 mock_temp_path = self.test_dir / "temp_dl"
-                 mock_temp_path.mkdir()
-                 # Need to return an object with a 'name' attribute
-                 mock_tempdir_instance = MagicMock()
-                 mock_tempdir_instance.name = str(mock_temp_path)
-                 mock_tempdir.return_value = mock_tempdir_instance
-
-                 pkg_path, pkg_name, pkg_version = utils.resolve_package_target(target_pkg)
-
-                 # Assertions
-                 mock_pip.assert_called_once() # Check pip download was called
-                 mock_extract.assert_called_once() # Check extraction was called
-                 mock_find_meta.assert_called_once() # Check metadata parsing was called
-                 self.assertEqual(pkg_name, expected_name)
-                 self.assertEqual(pkg_version, expected_version)
-                 # Path will be the mocked one from _find_package_root_and_metadata
-                 self.assertEqual(pkg_path, Path("/tmp/sherlock_download_xyz/extracted/requests-2.25.1"))
-
-    @patch('sherlockscan.utils.subprocess.run')
-    def test_resolve_target_pypi_download_fail(self, mock_pip):
-        """Test resolving a PyPI package when pip download fails."""
-        target_pkg = "requests"
-        # Configure mock pip to simulate failure
-        mock_pip.side_effect = subprocess.CalledProcessError(
-            cmd=['pip', 'download...'], returncode=1, stderr="Could not find package"
-        )
-        
-        with self.assertRaises(PackageNotFoundError) as cm:
-            utils.resolve_package_target(target_pkg)
-            
-        self.assertIn(f"Target package '{target_pkg}' could not be found", str(cm.exception))
-        mock_pip.assert_called_once() # Check pip download was attempted
-
+    def test_remote_resolution_failure_is_not_clean(self):
+        with patch('sherlockscan.utils.ingest', side_effect=ValueError("bad artifact")):
+            with self.assertRaises(SherlockScanError):
+                utils.resolve_package_target("demo")
 
 if __name__ == '__main__':
     unittest.main()

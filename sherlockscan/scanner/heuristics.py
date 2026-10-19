@@ -203,7 +203,7 @@ if __name__ == '__main__':
     import os
 
     # Create dummy config content
-    dummy_config_content = """
+    dummy_config_content = r"""
 regex_patterns:
   - name: AWS Access Key ID
     type: Hardcoded Secret
