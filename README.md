@@ -4,8 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/sherlockscan.svg)](https://pypi.org/project/sherlockscan/)
 
 SherlockScan is a beta static risk scanner for Python packages and source trees.
-Version 0.3.0 is available on PyPI. The development checkout adds notebook inspection,
-release comparison, and HTML reports.
+SherlockScan can inspect notebooks, compare package releases, and generate offline HTML reports.
 
 **A finding indicates potential risk; it does not prove maliciousness. A clean
 scan does not prove safety.**
@@ -13,7 +12,7 @@ scan does not prove safety.**
 ## Install and run
 
 Python 3.9 or newer is required. For the released version, use `pip install sherlockscan`.
-To try the development version from source:
+To try the latest checkout from source:
 
 ```bash
 git clone https://github.com/itsual/sherlockscan.git

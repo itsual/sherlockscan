@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 — in development
+## 0.4.0
 
 - Inspect Python notebook code cells and preserve cell locations in reports.
 - Compare two artifacts with `sherlockscan diff` and review findings in an offline HTML report.
