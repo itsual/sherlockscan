@@ -177,21 +177,21 @@ def scan_dependencies(package_name: str, config_path: str) -> List[Dict[str, Any
 
 def build_sbom(package_name: str, package_version: Optional[str], requirements: List[str]) -> Dict[str, Any]:
     """Create a small CycloneDX-compatible SBOM for the scanned distribution."""
-    components = []
+    components = {}
     for requirement in requirements:
         parsed_name = parse_requirement(requirement)
         if not parsed_name:
             continue
-        # Declared constraints are not installed/resolved versions. Never borrow
-        # the scanner environment's version for a different artifact's SBOM.
-        version = None
-        component = {"type": "library", "name": parsed_name, "purl": f"pkg:pypi/{parsed_name}"}
-        if version:
-            component["version"] = version
-            component["purl"] += f"@{version}"
-        component["properties"] = [{"name": "sherlockscan:requirement", "value": redact_url_credentials(requirement)}]
-        components.append(component)
-    root = {"type": "application", "name": package_name, "purl": f"pkg:pypi/{package_name}"}
+        # One component per declared distribution. Requirements do not resolve its version.
+        component = components.setdefault(parsed_name, {
+            "type": "library", "name": parsed_name, "purl": f"pkg:pypi/{parsed_name}",
+            "bom-ref": f"dependency:{parsed_name}", "properties": [],
+        })
+        prop = {"name": "sherlockscan:requirement", "value": redact_url_credentials(requirement)}
+        if prop not in component["properties"]:
+            component["properties"].append(prop)
+    root = {"type": "application", "name": package_name, "purl": f"pkg:pypi/{canonicalize_name(package_name)}",
+            "bom-ref": "scanned-project"}
     if package_version:
         root["version"] = package_version
         root["purl"] += f"@{package_version}"
@@ -201,5 +201,6 @@ def build_sbom(package_name: str, package_version: Optional[str], requirements: 
         "serialNumber": f"urn:uuid:{uuid.uuid4()}",
         "version": 1,
         "metadata": {"timestamp": datetime.now(timezone.utc).isoformat(), "component": root},
-        "components": components,
+        "components": list(components.values()),
+        "dependencies": [{"ref": root["bom-ref"], "dependsOn": [c["bom-ref"] for c in components.values()]}],
     }

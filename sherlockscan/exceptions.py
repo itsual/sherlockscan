@@ -60,3 +60,6 @@ class ReportFormattingError(SherlockScanError):
 #         print(f"Caught general error: {e}")
 
 
+class TargetError(ValueError):
+    """A target error with a fixed message safe for CLI output."""
+

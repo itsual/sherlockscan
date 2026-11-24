@@ -3,9 +3,9 @@
 [![CI](https://github.com/itsual/sherlockscan/actions/workflows/ci.yml/badge.svg)](https://github.com/itsual/sherlockscan/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/sherlockscan.svg)](https://pypi.org/project/sherlockscan/)
 
-SherlockScan is a beta static risk scanner for Python package artifacts. Version
-0.3.0 is prepared for release review on `main`; publishing to PyPI is a separate,
-manual action. The previously published version remains available until release approval.
+SherlockScan is a beta static risk scanner for Python packages and source trees.
+Version 0.3.0 is available on PyPI. The development checkout adds notebook inspection,
+release comparison, and HTML reports.
 
 **A finding indicates potential risk; it does not prove maliciousness. A clean
 scan does not prove safety.**
@@ -13,7 +13,7 @@ scan does not prove safety.**
 ## Install and run
 
 Python 3.9 or newer is required. For the released version, use `pip install sherlockscan`.
-To evaluate the v0.3.0 source before publication:
+To try the development version from source:
 
 ```bash
 git clone https://github.com/itsual/sherlockscan.git
@@ -23,15 +23,18 @@ sherlockscan version
 sherlockscan scan ./your-project --format json --output report.json
 sherlockscan scan ./package.whl --format sarif --output results.sarif
 sherlockscan scan requests==2.32.3 --format md
+sherlockscan scan ./training.ipynb --format html --output report.html
+sherlockscan diff ./old.whl ./new.whl --output changes.json
 ```
 
 PyPI retrieval chooses a non-yanked wheel compatible with the running interpreter,
 or a source archive when no compatible wheel exists. It scans **one exact artifact**,
 not every wheel, platform or dependency. The report records its filename and SHA-256.
 Artifact hashes from PyPI detect mismatches; they do not establish publisher trust.
-For a different platform, supply its wheel explicitly.
+Use `--artifact-filename` with a pinned `name==version` target to select an exact
+non-yanked PyPI file, including artifacts for a different platform.
 
-## What v0.3.0 does
+## Features
 
 - Reads ZIP/wheel and TAR source archives without extracting or executing target code.
 - Downloads artifact bytes directly from PyPI, without pip or target build hooks.
@@ -42,6 +45,9 @@ For a different platform, supply its wheel explicitly.
 - Explains each finding's trigger, legitimate uses and suggested investigation.
 - Produces Markdown, JSON, SARIF 2.1.0 and a declared-dependency CycloneDX SBOM.
 - Supports scoped suppressions and opt-in CI severity thresholds.
+- Scans Python notebook code cells and reports their cell-relative locations.
+- Compares two artifacts and reports changes in findings, declarations, and coverage.
+- Provides an offline HTML report and optional dependency name similarity hints.
 
 Importing networking or serialization libraries is informational. Co-occurring
 environment access and networking is a review hint; no data flow or attack is proven.
@@ -67,6 +73,17 @@ Use `--config DIRECTORY` for trusted custom `risk_patterns.yaml` and optional
 `approved_packages.yaml`. Existing v0.2 regex/keyword YAML remains supported. Rules
 may supply an uppercase `id`; otherwise a deterministic content-derived ID is used.
 Custom patterns are trusted configuration, not sandboxed code or regexes.
+
+Use `--check-dependency-names` for low-confidence, one-edit similarity hints based
+on the bundled ML watchlist. Notebook Markdown, outputs, and attachments are
+excluded. Line directives such as `%run` are flagged where applicable. The body of
+a cell magic and explicitly non-Python notebooks are reported as incomplete.
+
+`sherlockscan diff` accepts two local artifacts or explicitly pinned PyPI releases of
+the same project. It compares the visible static findings and dependency declarations.
+Repeated findings are counted separately. For hidden or redacted evidence, different
+underlying values can produce the same comparison key. Review both artifacts when a
+comparison returns incomplete coverage. See [CI and pre-commit setup](docs/automation.md).
 
 | Exit | Meaning |
 | --- | --- |
@@ -130,6 +147,6 @@ python -m twine check dist/*
 
 See [the release review checklist](docs/release-review.md),
 [changelog](CHANGELOG.md), [security policy](SECURITY.md), and
-[launch measurement plan](docs/launch-measurement.md).
+[development roadmap](docs/roadmap.md).
 The manual publishing workflow requires an explicit release-review confirmation.
 Pushing to `main` does not publish a package.

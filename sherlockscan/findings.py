@@ -124,6 +124,30 @@ GUIDANCE = {
         "Compiled extensions and generated source often require custom build hooks.",
         "Inspect the declared backend and hooks in isolation before invoking a build.",
     ),
+    "NOTEBOOK": (
+        "Notebook execution directive",
+        "MEDIUM",
+        "HIGH",
+        "A notebook directive can run a command or another file when a cell is executed.",
+        "Notebooks often invoke preprocessors, CLI tools, or shared setup scripts.",
+        "Review the command or referenced file and its inputs before running the cell.",
+    ),
+    "TYPO": (
+        "Similar dependency name",
+        "LOW",
+        "LOW",
+        "A declared dependency name is close to a name in the configured watchlist.",
+        "The dependency may be an unrelated project with a similar name.",
+        "Compare the exact distribution name with the project's official installation instructions.",
+    ),
+    "MODEL-SOURCE": (
+        "Model source review",
+        "MEDIUM",
+        "MEDIUM",
+        "A model call loads executable repository code or uses an upstream revision that can change.",
+        "Research code frequently tracks upstream model repositories during experimentation.",
+        "Review the publisher and pin an appropriate revision before using the model in production.",
+    ),
 }
 
 
@@ -151,12 +175,15 @@ def make_finding(
     context="UNKNOWN",
     suffix="",
     evidence=None,
+    fingerprint_scope=None,
 ):
     title, level, certainty, why, legitimate, investigate = GUIDANCE[kind]
     rule = f"SHLK-{kind}" + (f"-{suffix}" if suffix else "")
     # Hash original evidence internally, never place literal secrets in reports.
     normalized = " ".join(snippet.split())
     identity = f"{rule}\0{path}\0{normalized}"
+    if fingerprint_scope is not None:
+        identity += f"\0{fingerprint_scope}"
     fingerprint = hashlib.sha256(identity.encode()).hexdigest()
     return {
         "rule_id": rule,

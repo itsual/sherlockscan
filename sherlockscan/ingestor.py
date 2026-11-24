@@ -16,6 +16,7 @@ from email.parser import BytesParser
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 from urllib.request import urlopen
+from urllib.error import HTTPError
 
 import toml
 from packaging.requirements import Requirement
@@ -23,6 +24,7 @@ from packaging.tags import sys_tags
 from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name, parse_wheel_filename
 from packaging.version import Version
+from .exceptions import TargetError
 
 
 @dataclass(frozen=True)
@@ -245,7 +247,7 @@ def _https(url: str, allowed: set[str]) -> None:
         raise ValueError("Unexpected registry URL")
 
 
-def fetch_pypi(spec: str, destination: Path, limits: Limits = Limits()) -> dict:
+def fetch_pypi(spec: str, destination: Path, limits: Limits = Limits(), *, artifact_filename=None) -> dict:
     match = re.fullmatch(r"([A-Za-z0-9][A-Za-z0-9._-]*)(?:==([A-Za-z0-9.!+_-]+))?", spec)
     if not match:
         raise ValueError("Use a PyPI name or name==version; URLs and arbitrary pip arguments are unsupported")
@@ -255,12 +257,16 @@ def fetch_pypi(spec: str, destination: Path, limits: Limits = Limits()) -> dict:
     with urlopen(endpoint, timeout=15) as response:
         _https(response.geturl(), {"pypi.org"})
         payload = json.loads(_bounded_read(response, 5 * 1024 * 1024))
-    compatible = set(sys_tags())
+    tag_rank = {tag: rank for rank, tag in enumerate(sys_tags())}
     if version and Version(payload["info"]["version"]) != Version(version):
         raise ValueError("Registry version differs from requested version")
     artifacts = []
     for item in payload["urls"]:
         if item.get("yanked") or item["packagetype"] not in {"bdist_wheel", "sdist"}:
+            continue
+        if artifact_filename is not None:
+            if item["filename"] == artifact_filename:
+                artifacts.append((0, item["filename"], item))
             continue
         if item.get("requires_python"):
             import sys
@@ -269,13 +275,18 @@ def fetch_pypi(spec: str, destination: Path, limits: Limits = Limits()) -> dict:
                 continue
         if item["filename"].endswith(".whl"):
             _, _, _, tags = parse_wheel_filename(item["filename"])
-            if not tags & compatible:
+            matching_ranks = [tag_rank[tag] for tag in tags if tag in tag_rank]
+            if not matching_ranks:
                 continue
-        artifacts.append(item)
+            rank = min(matching_ranks)
+        else:
+            rank = len(tag_rank)
+        artifacts.append((rank, item["filename"], item))
     if not artifacts:
-        raise ValueError("No non-yanked compatible artifact available")
-    artifacts.sort(key=lambda x: (x["packagetype"] != "bdist_wheel", x["filename"]))
-    item = artifacts[0]
+        if artifact_filename is not None:
+            raise TargetError("The selected filename is unavailable or yanked for this PyPI release.")
+        raise TargetError("No non-yanked compatible artifact is available for this PyPI release.")
+    _, _, item = min(artifacts, key=lambda candidate: candidate[:2])
     _https(item["url"], {"files.pythonhosted.org"})
     if item.get("size", 0) > limits.download:
         raise ValueError("Artifact exceeds download limit")
@@ -301,17 +312,39 @@ def fetch_pypi(spec: str, destination: Path, limits: Limits = Limits()) -> dict:
     }
 
 
-def ingest(target: str, limits: Limits = Limits()) -> Package:
+def ingest(target: str, limits: Limits = Limits(), *, artifact_filename=None) -> Package:
     import tempfile
 
+    target = os.fspath(target)
     path = Path(target)
+    if artifact_filename is not None and (path.exists() or "==" not in target):
+        raise TargetError("Use --artifact-filename with a pinned PyPI target (name==version).")
     if path.is_dir():
         return read_directory(path, limits)
+    local_suffix = path.name.lower().endswith((".whl", ".zip", ".tar", ".tar.gz", ".tgz", ".ipynb"))
+    if path.is_file() and path.suffix.lower() == ".ipynb":
+        with path.open("rb") as source:
+            data = _bounded_read(source, min(limits.member, limits.total))
+        return Package(
+            name=path.stem,
+            files={path.name: data},
+            artifact={"kind": "notebook", "filename": path.name, "sha256": hashlib.sha256(data).hexdigest()},
+        )
     if path.is_file():
         return read_archive(path, limits)
+    if local_suffix or "/" in target or "\\" in target or target in {".", ".."}:
+        raise TargetError("Local target does not exist. Check the file or directory path.")
     with tempfile.TemporaryDirectory(prefix="sherlockscan-") as temporary:
         path = Path(temporary) / "artifact"
-        artifact = fetch_pypi(target, path, limits)
+        try:
+            artifact = fetch_pypi(target, path, limits, artifact_filename=artifact_filename)
+        except HTTPError as exc:
+            message = (
+                "Package or version was not found on PyPI."
+                if exc.code == 404
+                else f"PyPI request failed (HTTP {exc.code})."
+            )
+            raise TargetError(message) from exc
         pkg = read_archive(path, limits)
         if canonicalize_name(pkg.name) != artifact["expected_name"] or Version(pkg.version or "0") != Version(
             artifact["expected_version"]

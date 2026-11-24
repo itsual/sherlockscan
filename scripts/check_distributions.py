@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from packaging.utils import parse_wheel_filename
 
 
 def run(*args, **kwargs):
@@ -15,14 +16,16 @@ def run(*args, **kwargs):
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    artifacts = root / "dist"
+    artifacts = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else root / "dist"
     wheels = list(artifacts.glob("*.whl"))
     sources = list(artifacts.glob("*.tar.gz"))
     assert len(wheels) == len(sources) == 1, "Build into a clean dist directory"
+    expected_version = str(parse_wheel_filename(wheels[0].name)[1])
     with zipfile.ZipFile(wheels[0]) as archive:
         names = archive.namelist()
         assert "sherlockscan/config/risk_patterns.yaml" in names
         assert "sherlockscan/config/approved_packages.yaml" in names
+        assert "sherlockscan/config/dependency_watchlist.txt" in names
         assert not any(n.startswith(("tests/", "integration/")) for n in names)
     with tempfile.TemporaryDirectory(prefix="sherlockscan-package-check-") as temporary:
         temporary = Path(temporary)
@@ -51,7 +54,7 @@ from importlib.resources import files
 from pathlib import Path
 from sherlockscan.engine import scan_package
 from sherlockscan.reporting import render
-assert sherlockscan.__version__ == '0.3.0'
+assert sherlockscan.__version__ == sys.argv[2]
 assert str(Path(sherlockscan.__file__).resolve()).startswith(str(Path(sys.argv[1]).resolve()))
 assert (files('sherlockscan.config') / 'risk_patterns.yaml').is_file()
 project = Path('fixture')
@@ -61,11 +64,11 @@ project.mkdir(exist_ok=True)
 report = scan_package(str(project))
 assert report['exit_code'] == 0, report['coverage']
 assert report['findings'] == []
-for format in ('json', 'md', 'sarif'):
+for format in ('json', 'md', 'sarif', 'html'):
     assert render(report, format)
 print('installed-artifact-ok', sherlockscan.__version__)
 """
-            run(sys.executable, "-I", "-c", code, target, cwd=temporary)
+            run(sys.executable, "-I", "-c", code, target, expected_version, cwd=temporary)
             candidates = [
                 target / name
                 for name in ("Scripts/sherlockscan.exe", "bin/sherlockscan.exe", "bin/sherlockscan")

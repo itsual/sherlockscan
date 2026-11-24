@@ -1,0 +1,15 @@
+huggingface-hub
+joblib
+jupyterlab
+numpy
+pandas
+pytorch-lightning
+safetensors
+scikit-learn
+scipy
+tensorflow
+torch
+torchaudio
+torchvision
+transformers
+xgboost

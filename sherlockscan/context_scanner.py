@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import PurePosixPath
 from .findings import make_finding
 
@@ -157,7 +158,9 @@ class Visitor(ast.NodeVisitor):
                     if None in options or any(isinstance(a, ast.Starred) for a in node.args)
                     else "omitted"
                 )
-            return value.value if isinstance(value, ast.Constant) else "unknown"
+            if isinstance(value, ast.Constant) and (isinstance(value.value, bool) or value.value is None):
+                return value.value
+            return "unknown"
 
         evidence = {"resolved_call": name}
         if name in {"eval", "exec", "compile", "__import__"}:
@@ -183,6 +186,32 @@ class Visitor(ast.NodeVisitor):
                         detail="Omitted defaults depend on PyTorch version; unresolved values require review.",
                         evidence={**evidence, "weights_only": weights, "pickle_module": pickle_module},
                     )
+        elif name == "torch.jit.load":
+            self.emit(
+                "PICKLE", node, detail="Review trust in the serialized TorchScript model.", evidence=evidence
+            )
+        elif name == "torch.hub.load":
+            self.emit(
+                "MODEL-SOURCE",
+                node,
+                detail="Review the repository entry point before invoking Torch Hub.",
+                evidence=evidence,
+            )
+        elif name in {"huggingface_hub.snapshot_download", "huggingface_hub.hf_hub_download"}:
+            revision = options.get("revision")
+            pinned = (
+                isinstance(revision, ast.Constant)
+                and isinstance(revision.value, str)
+                and re.fullmatch(r"[0-9a-fA-F]{40}", revision.value) is not None
+            )
+            if not pinned and option("local_files_only") is not True:
+                self.emit(
+                    "MODEL-SOURCE",
+                    node,
+                    severity="LOW",
+                    detail="The call does not specify a full commit hash.",
+                    evidence={**evidence, "revision_pinned": False},
+                )
         elif name == "numpy.load":
             allow = option("allow_pickle", 2)
             if allow is True or allow == "unknown":

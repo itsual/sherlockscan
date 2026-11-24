@@ -22,9 +22,11 @@ entries generate warnings. Suppressions do not hide findings or repair coverage
 gaps. They only remove matched findings from the actionable policy count. SARIF
 records an accepted external suppression and its reason.
 
-Fingerprints hash the rule, relative file path and whitespace-normalized evidence;
-moving identical evidence to a different line does not invalidate it. Relocating a
-file or changing its evidence may require re-review. Exact-path exceptions cover all
-matching findings for that rule in that file; use fingerprints for narrower scope.
+Fingerprints use the rule, relative path, and normalized evidence. Repeated findings
+and hidden evidence can include the source position so one fingerprint matches only
+one finding. Notebook fingerprints also include the cell number. Moving these
+findings can require re-review. Refresh v0.3 fingerprints for redacted findings
+after upgrading. Exact-path exceptions cover every match for the chosen rule in
+that file.
 
 Never post real secrets in suppression reasons, issue bodies or configuration names.

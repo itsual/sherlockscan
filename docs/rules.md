@@ -21,6 +21,9 @@ across all output formats. No detector runs a target function or validates a tok
 | KEYWORD | Configured source/decoded pattern | Comments and examples | Review actual behavior |
 | DEPENDENCY | Declared dependency violates policy | Policy drift | Review full requirement, extras and markers |
 | BUILD | Custom build settings | Extensions, generated source | Inspect backend before building |
+| NOTEBOOK | Execution directive in a notebook cell | Shared setup scripts and preprocessing | Review the directive and referenced resources |
+| TYPO | Opt-in similarity to a watched dependency name | An unrelated, similarly named distribution | Verify the exact distribution name against upstream guidance |
+| MODEL-SOURCE | Torch Hub repository entry point or unpinned Hugging Face download | Interactive model experiments | Review the publisher and pin the intended revision |
 
 Context classification distinguishes module import, function/method, setup/build,
 tests/docs and Python startup. It describes syntax-level location, not guaranteed

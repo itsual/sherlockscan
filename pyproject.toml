@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sherlockscan"
-version = "0.3.0"
+version = "0.4.0.dev0"
 description = "Explainable static risk inspection for Python package artifacts."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -33,7 +33,7 @@ dev = ["pytest>=8", "ruff>=0.6", "build", "twine", "jsonschema>=4"]
 include = ["sherlockscan*"]
 
 [tool.setuptools.package-data]
-sherlockscan = ["config/*.yaml"]
+sherlockscan = ["config/*.yaml", "config/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "integration"]

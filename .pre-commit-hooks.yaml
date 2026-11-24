@@ -1,0 +1,8 @@
+- id: sherlockscan
+  name: SherlockScan local project
+  description: Static scans of the local Python project and notebook code.
+  entry: sherlockscan scan . --fail-on HIGH
+  language: python
+  pass_filenames: false
+  require_serial: true
+  files: '(\.py|\.ipynb|\.pth|(^|/)pyproject\.toml)$'

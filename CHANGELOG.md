@@ -1,6 +1,18 @@
 # Changelog
 
-## 0.3.0 — prepared, not published
+## 0.4.0 — in development
+
+- Inspect Python notebook code cells and preserve cell locations in reports.
+- Compare two artifacts with `sherlockscan diff` and review findings in an offline HTML report.
+- Prefer host-compatible wheel tags and support an exact PyPI artifact filename.
+- Distinguish repeated redacted findings in suppressions and merge duplicate SBOM components.
+- Add opt-in ML dependency name hints and model source review rules.
+- Add a composite GitHub Action and a pre-commit hook.
+
+Review existing fingerprint-based suppressions after upgrading. Some findings now
+use a more specific fingerprint, while rule IDs and exact-path suppression syntax stay the same.
+
+## 0.3.0 — published
 
 - Static artifact download and metadata inspection without pip or target build hooks.
 - Bounded archives/literal decoding, startup hook inspection, explicit coverage gaps.
