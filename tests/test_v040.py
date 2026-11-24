@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import jsonschema
+import pytest
 from packaging.tags import Tag
 from typer.testing import CliRunner
 
@@ -131,6 +132,59 @@ def test_exact_fingerprint_suppression_for_repeated_redacted_findings(tmp_path):
     assert result["exit_code"] == 10
     assert sum(f["suppressed"] for f in result["findings"]) == 1
     assert "fake-aaaa" not in render(result, "html")
+
+
+@pytest.mark.parametrize("target_kind", ["python", "decoded", "notebook"])
+def test_changed_redacted_evidence_requires_new_suppression(tmp_path, target_kind):
+    config = tmp_path / "config"
+    config.mkdir()
+    (config / "risk_patterns.yaml").write_text(
+        "regex_patterns:\n- name: Example Key\n  severity: HIGH\n  pattern: fake-[a-z]+\n", encoding="utf-8"
+    )
+    root = project(tmp_path / "tree", "1")
+
+    def set_example(value):
+        if target_kind == "notebook":
+            return notebook(root / "example.ipynb", [{"cell_type": "code", "source": f"# {value}\npass"}])
+        source = f"example = {value.encode().hex()!r}" if target_kind == "decoded" else f"# {value}"
+        (root / "module.py").write_text(source, encoding="utf-8")
+        return root
+
+    target = set_example("fake-aaaa")
+    before = scan_package(target, config_dir=config, fail_on="HIGH")
+    old_match = next(f for f in before["findings"] if f["rule_id"].startswith("SHLK-SECRET"))
+    assert before["exit_code"] == 10
+    suppression = tmp_path / "suppressions.yaml"
+    suppression.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "suppressions": [
+                    {
+                        "rule_id": old_match["rule_id"],
+                        "fingerprint": old_match["fingerprint"],
+                        "reason": "Reviewed sample value",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    reviewed = scan_package(target, config_dir=config, suppressions=suppression, fail_on="HIGH")
+    assert reviewed["exit_code"] == 0
+
+    target = set_example("fake-bbbb")
+    updated = scan_package(target, config_dir=config, suppressions=suppression, fail_on="HIGH")
+    new_match = next(f for f in updated["findings"] if f["rule_id"] == old_match["rule_id"])
+    assert new_match["file_path"] == old_match["file_path"]
+    assert new_match["line_number"] == old_match["line_number"]
+    assert new_match["code_snippet"] == old_match["code_snippet"]
+    assert new_match["fingerprint"] != old_match["fingerprint"]
+    assert not new_match["suppressed"]
+    assert updated["exit_code"] == 10
+    for output_format in ("json", "html", "sarif", "md"):
+        assert "fake-aaaa" not in render(updated, output_format)
+        assert "fake-bbbb" not in render(updated, output_format)
 
 
 def test_typo_hints_are_opt_in_and_canonicalized(tmp_path):

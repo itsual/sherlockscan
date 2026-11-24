@@ -54,7 +54,17 @@ def _patterns(config_dir):
     return patterns
 
 
-def _heuristics(source, path, patterns, *, decoded=False, line_override=None, chain=None, origin_column=None):
+def _heuristics(
+    source,
+    path,
+    patterns,
+    *,
+    source_digest,
+    decoded=False,
+    line_override=None,
+    chain=None,
+    origin_column=None,
+):
     findings = []
     for number, line in enumerate(source.splitlines(), 1):
         if len(findings) > 10000:
@@ -81,6 +91,7 @@ def _heuristics(source, path, patterns, *, decoded=False, line_override=None, ch
                     severity=entry.get("severity", "MEDIUM"),
                     evidence={"decoded": decoded, "encoding_chain": chain or []},
                     fingerprint_scope=(
+                        source_digest,
                         line_override,
                         origin_column,
                         number,
@@ -102,7 +113,13 @@ def _heuristics(source, path, patterns, *, decoded=False, line_override=None, ch
                         suffix=entry["id"],
                         severity=entry.get("severity", "LOW"),
                         evidence={"decoded": decoded, "encoding_chain": chain or []},
-                        fingerprint_scope=(line_override, origin_column, number, tuple(chain or ()))
+                        fingerprint_scope=(
+                            source_digest,
+                            line_override,
+                            origin_column,
+                            number,
+                            tuple(chain or ()),
+                        )
                         if decoded
                         else None,
                     )
@@ -128,7 +145,10 @@ def _torch_default(requirements):
 
 
 def _scan_python(source, path, patterns, torch_default, deobfuscation, findings, coverage, redactions):
-    findings.extend(_heuristics(source, path, patterns))
+    # Bind hidden evidence to the inspected file or cell. Hash the source once,
+    # rather than publishing a digest of an individual credential or decoded match.
+    source_digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
+    findings.extend(_heuristics(source, path, patterns, source_digest=source_digest))
     for entry in patterns["regex_patterns"]:
         for match in entry["compiled"].finditer(source):
             if len(match.group()) >= 8:
@@ -149,7 +169,7 @@ def _scan_python(source, path, patterns, torch_default, deobfuscation, findings,
                     node.lineno,
                     "[literal omitted]",
                     evidence={"entropy": round(entropy, 3)},
-                    fingerprint_scope=(node.lineno, node.col_offset),
+                    fingerprint_scope=(source_digest, node.lineno, node.col_offset),
                 )
             )
         if deobfuscation and len(value) >= 8:
@@ -167,6 +187,7 @@ def _scan_python(source, path, patterns, torch_default, deobfuscation, findings,
                         decoded_text,
                         path,
                         patterns,
+                        source_digest=source_digest,
                         decoded=True,
                         line_override=node.lineno,
                         origin_column=node.col_offset,

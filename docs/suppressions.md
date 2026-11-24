@@ -23,10 +23,10 @@ gaps. They only remove matched findings from the actionable policy count. SARIF
 records an accepted external suppression and its reason.
 
 Fingerprints use the rule, relative path, and normalized evidence. Repeated findings
-and hidden evidence can include the source position so one fingerprint matches only
-one finding. Notebook fingerprints also include the cell number. Moving these
-findings can require re-review. Refresh v0.3 fingerprints for redacted findings
-after upgrading. Exact-path exceptions cover every match for the chosen rule in
-that file.
+can include their source position. For redacted heuristic findings, the fingerprint
+also depends on the inspected Python file or notebook code cell. Editing that source
+requires re-review, even if the finding is still at the same position. Refresh
+existing redacted finding fingerprints after upgrading. Exact-path exceptions apply
+to every match for the chosen rule in that file, including later findings.
 
 Never post real secrets in suppression reasons, issue bodies or configuration names.
